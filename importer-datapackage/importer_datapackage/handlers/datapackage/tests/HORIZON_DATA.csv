@@ -1,0 +1,17 @@
+PointID;HorizontID;Upper limit;Lower limit;Horizon symbol;Soil texture class;Soil colour;Stones;Carbonate class;Organic matter content class;Rooting intensity
+2;1;0;28;"I; Ap";Sl2;7.5YR 3/2;3;C0;h3;Wf4
+2;2;28;54;"I; E";Sl2;10YR 3/3;3;C0;h2;Wf3
+2;3;54;68;"II; Bv";Sl2;7.5YR 4/3;10;C0;h1;Wf3
+2;4;68;96;"III; Bv-ilCv";fSms;7.5YR 6/4;1;C0;h0;Wf2
+2;5;96;201;"III; ilCv";mSfs;10YR 7/4;1;C0;h0;
+3;1;0;12;"I; tbSw-Ah";Ls3;10YR 4/2;0;C0;h3;Wf6
+3;2;12;30;"I; tbSw-rAp";Ls2;10YR 4/2;0;C0;h2;Wf4
+3;3;30;54;"I; tbrGo-Sw";Ls4;2.5Y 5/1;0;C0;h1;Wf2
+3;4;54;125;"I; tbGo-Sd";Lu;5Y 5/1;0;C0;h1;
+3;5;125;160;"II; tmGor";Su3;5Y 5/1;0;C0;h1;
+3;6;160;201;"II; tmeGr";Su3;GLEY1 4/5GY;0;C3.2;h1;
+4;1;0;30;"I; Sw-tbAp";Tu3;5Y 5/2;0;C0;h3;Wf4
+4;2;30;74;"I; tbSq";Tu3;5Y 5/1;0;C0;h1;Wf3
+4;3;74;140;"I; tbGro";Tu4;5Y 6/1;0;C0;h0;Wf1
+4;4;140;200;"I; tbGr";Tu4;GLEY1 5/N;0;C0;h0;
+5;1;0;9;"I; Aeh";fSms;10YR 3/1;0;C0;h3;Wf6

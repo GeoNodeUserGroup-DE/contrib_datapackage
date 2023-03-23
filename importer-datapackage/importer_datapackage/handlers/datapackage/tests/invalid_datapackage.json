@@ -1,0 +1,24 @@
+{
+  "name": "invalid-datapackage",
+  "resources": [
+    {
+      "profile": "tabular-data-resource",
+      "name": "invalid-resource-missing-path",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "PointID",
+            "description": "Sampling point identifier",
+            "type": "string"
+          }
+        ],
+        "primaryKey": [
+          "PointID"
+        ]
+      }
+    }
+  ]
+}

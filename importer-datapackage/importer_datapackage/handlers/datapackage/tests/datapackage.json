@@ -1,0 +1,313 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ridoo/frictionlessdata-specs/master/schemas/data-package.json",
+  "name": "german-agricultural-soil-inventory-core",
+  "title": "First German Agricultural Soil Inventory - Core dataset",
+  "description": "The Federal Republic of Germany is obliged to report all anthropogenic sources and sinks of greenhouse gases on a national scale. Changes in soil organic carbon (SOC) stocks are among these sources and sinks. Furthermore, soil organic matter is a key indicator of soil fertility. The Thünen Institute of Climate-Smart Agriculture was commissioned by the German Federal Ministry of Food and Agriculture to conduct the first German agricultural soil inventory and obtain a first representative and consistent baseline of SOC stocks in agricultural soils across Germany. Potential explanatory variables were also assessed. Between 2009 and 2018, a total of 3104 field sites were sampled in a 8x8 km grid (Jacobs et al., 2018). The dataset contains the key data (laboratory and field) of the first German agricultural soil inventory. It consists of three parts with associated readme-files, which explain the data: LABORATORY_DATA.xlsx: This file contains all relevant laboratory results. SITE.xlsx: This file contains the most important general information on the sampled sites. HORIZON_DATA.xlsx: This file contains the soil profile description as determined in the field with several key horizon parameters. In SITE.xlsx and HORIZON_DATA.xlsx, several parameters were determined using the German soil description guidelines (Ad-Hoc-Ag Boden, 2005) and are not explained here in detail. Single parameters, such as soil texture class or carbonate content class/ carbonate content are given in LABORATORY_DATA.xlsx and HORIZON_DATA.xlsx and can slightly deviate due to different methodologies (Estimation of soil scientist vs. laboratory analysis). Methodological details can be found in the Thünen Report 64. References Ad-Hoc-Ag Boden (2005) Bodenkundliche Kartieranleitung. E.Schweizerbart'sche Verlagsbuchhandlung, Hannover. Jacobs, A., Flessa, H., Don, A., Heidkamp, A., Prietz, R., Dechow, R., Gensior, A., Poeplau, C., Riggers, C. & Schneider, F. (2018) Landwirtschaftlich genutzte Böden in Deutschland: Ergebnisse der Bodenzustandserhebung. Thünen Report 64.",
+  "last_modified": "2023-01-19",
+  "licenses": [
+    {
+      "name": "cc-by-4.0",
+      "path": "http://creativecommons.org/licenses/by/4.0/",
+      "title": "Creative Commons Attribution 4.0"
+    }
+  ],
+  "sources": [
+    {
+      "title": "First German Agricultural Soil Inventory - Core dataset",
+      "path": "https://doi.org/10.3220/DATA20200203151139"
+    }
+  ],
+  "resources": [
+    {
+      "profile": "tabular-data-resource",
+      "name": "horizon_data",
+      "path": "HORIZON_DATA.csv",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "PointID",
+            "type": "integer",
+            "description": "Sampling point identifier"
+          },
+          {
+            "name": "HorizontID",
+            "type": "integer",
+            "description": "Horizon number of each individual soil profile"
+          },
+          {
+            "name": "Upper limit",
+            "type": "integer",
+            "description": "Upper limit of the horizon [cm]"
+          },
+          {
+            "name": "Lower limit",
+            "type": "integer",
+            "description": "Lower limit of the horizon [cm]"
+          },
+          {
+            "name": "Horizon symbol",
+            "type": "string",
+            "description": "Horizon symbol according to German soil classification (KA5)"
+          },
+          {
+            "name": "Soil texture class",
+            "type": "string",
+            "description": "Texture class as identified by feel in the field according to KA5"
+          },
+          {
+            "name": "Soil colour",
+            "type": "string",
+            "description": "Soil colour according to Munsell soil colour chart"
+          },
+          {
+            "name": "Stones",
+            "type": "integer",
+            "description": "Estimated total rock fragment fraction [Vol%]"
+          },
+          {
+            "name": "Carbonate class",
+            "type": "string",
+            "description": "Carbonate class according to KA5"
+          },
+          {
+            "name": "Organic matter content class",
+            "type": "string",
+            "description": "Organic matter content class according to KA5 as determined in the field"
+          },
+          {
+            "name": "Rooting intensity",
+            "type": "string",
+            "description": "Rooting intensity according to KA5"
+          }
+        ],
+        "primaryKey": [
+          "PointID",
+          "HorizontID"
+        ]
+      },
+      "dialect": {
+        "delimiter": ";",
+        "doubleQuote": true
+      }
+    },
+    {
+      "profile": "tabular-data-resource",
+      "name": "laboratory_data",
+      "path": "LABORATORY_DATA.csv",
+      "format": "csv",
+      "mediatype": "text/csv",
+      "encoding": "utf-8",
+      "schema": {
+        "fields": [
+          {
+            "name": "PointID",
+            "description": "Sampling point identifier",
+            "type": "integer"
+          },
+          {
+            "name": "County",
+            "description": "Abbreviation of County, BB=Brandenburg, BE=Berlin, BW=Baden-Würtemberg, BY=Bayern, HB=Bremen, HE=Hessen, HH=Hansestadt Hamburg, MV=Mecklenburg Vorpommern, NI=Niedersachsen, NW=Nordrhein-Westfalen, RP=Rheinland-Pfalz, SH=Schleswig Holstein, SL=Saarland, SN=Sachsen, ST=Sachsen-Anhalt, TH=Thüringen",
+            "type": "string"
+          },
+          {
+            "name": "Layer upper limit",
+            "description": "Upper limit of the sampled layer [cm]; standard depths: 0-10cm, 10-30cm, 30-50cm, 50-70cm, 70-100cm; Deviating sampling (additional layers), when limit of the peodgenetic horizon deviated by more than 4 cm from the standard depth layer limit.",
+            "type": "integer"
+          },
+          {
+            "name": "Layer lower limit",
+            "description": "Lower limit of the sampled layer [cm]; standard depths: 0-10cm, 10-30cm, 30-50cm, 50-70cm, 70-100cm; Deviating sampling (additional layers), when limit of the peodgenetic horizon deviated by more than 4 cm from the standard depth layer limit.",
+            "type": "integer"
+          },
+          {
+            "name": "Horizon lower limit",
+            "description": "Lower limit of the pedogenetic soil horizon [cm]",
+            "type": "integer"
+          },
+          {
+            "name": "gS",
+            "description": "Coarse sand content [Mass-%]; Grain size 630-2000µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "mS",
+            "description": "Medium sized sand content [Mass-%]; Grain size 200-630µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "fS",
+            "description": "Fine sand content [Mass-%]; Grain size 63-200µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "gU",
+            "description": "Coarse silt content [Mass-%]; grain size 20-63µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "mU",
+            "description": "Medium sized silt content [Mass-%]; Grain size 6.3-20µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "fU",
+            "description": "Fine silt content [Mass-%]; Grain size 2-6.3µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Sand",
+            "description": "Sand content [Mass-%]; grain size 63-2000µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Silt",
+            "description": "Silt content [Mass-%]; Grain size 2-63µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Clay",
+            "description": "Clay content [Mass-%]; Grain size >2µm (DIN ISO 11277)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Soil texture class",
+            "description": "According to German texture triangle (KA5)",
+            "type": "string"
+          },
+          {
+            "name": "pH_H2O",
+            "description": "pH-value in water [mol l-1] (DIN ISO 10390, modified)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "EC_H2O",
+            "description": "Electric conductivity in water [µS cm-1] (DIN EN ISO 27888)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "pH_CaCl2",
+            "description": "pH-vlaue in Claciumchlorid [mol l-1] (DIN ISO 10390)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "TC",
+            "description": "Total carbon[g kg-1] (DIN ISO 10694:1995)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "TOC",
+            "description": "Organic carbon [g kg-1]  (DIN ISO 10694:1995)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "TIC",
+            "description": "Inorganic carbon [g kg-1] (DIN 19539, modified)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "TN",
+            "description": "Total nitrogen [g kg-1]  (DIN EN 16168:2012)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "TS",
+            "description": "Total sulphur [g kg-1] (DIN ISO 15178:02-2001)",
+            "type": "string"
+          },
+          {
+            "name": "BD_FS",
+            "description": "Bulk density of the fine soil [g cm-3] (HFA A2.8, verändert)",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "FSS",
+            "description": "Fine soil stock [Mg ha-1]",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Water content",
+            "description": "Water content at sampling [Mass-%]",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Stone density",
+            "description": "True density of the rock fragment fraction (>2mm) [g cm-3] (DIN ISO 11508) ",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "BD_bulk",
+            "description": "Total soil bulk density [g cm-3] (HFA A2.8, verändert)",
+            "type": "number",
+            "decimalChar": ",",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Rock fragment fraction",
+            "description": "Rock fragment fraction (>2mm) [Vol-%]",
+            "type": "number",
+            "decimalChar": ","
+          },
+          {
+            "name": "Mn_Ox",
+            "description": "Oxalate-extractable Manganese [mg kg-1] (DIN 19684-6)",
+            "type": "string",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Fe_Ox",
+            "description": "Oxalate-extractable iron [g kg-1] (DIN 19684-6)",
+            "type": "string",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Al_Ox",
+            "description": "Oxalate-extractable Aluminum [g kg-1] (DIN 19684-6)",
+            "type": "string",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Mn_Di",
+            "description": "Dithionite-extractable Manganese [mg kg-1] (DIN EN ISO 12782-2:2012)",
+            "type": "string",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Fe_Di",
+            "description": "Dithionite-extractable iron [g kg-1] (DIN EN ISO 12782-2:2012)",
+            "type": "string",
+            "missingValues": ["NA"]
+          },
+          {
+            "name": "Al_Di",
+            "description": "Dithionite-extractable Aluminum [g kg-1] (DIN EN ISO 12782-2:2012)",
+            "type": "string",
+            "missingValues": ["NA"]
+          }
+        ]
+      }
+    }
+  ]
+}
