@@ -16,6 +16,7 @@ from geonode.utils import set_resource_default_links
 
 from importer.orchestrator import orchestrator
 from importer.handlers.common.vector import BaseVectorFileHandler
+from importer.utils import ImporterRequestAction as ira
 
 from osgeo import ogr
 from frictionless import Package
@@ -46,6 +47,10 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             "importer.copy_geonode_data_table",
             "importer.publish_resource",
             "importer.copy_geonode_resource"
+        ),
+        ira.ROLLBACK.value: (
+            "start_rollback",
+            "importer.rollback",
         ),
     }
 
@@ -156,14 +161,14 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         saved_dataset.refresh_from_db()
 
-        with self.load_local_resource("table-icon.png") as icon:
-            # binary = Image.open(icon)
-            # datapackage_resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=binary)
-            with BytesIO() as output:
-                img = Image.open(icon)
-                img.save(output, format="PNG")
-                content = output.getvalue()
-            saved_dataset.save_thumbnail(icon.name, content)
+        # with self.load_local_resource("table-icon.png") as icon:
+        #     # binary = Image.open(icon)
+        #     # datapackage_resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=binary)
+        #     with BytesIO() as output:
+        #         img = Image.open(icon)
+        #         img.save(output, format="PNG")
+        #         content = output.getvalue()
+        #     saved_dataset.save_thumbnail(icon.name, content)
 
         set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
