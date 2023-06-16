@@ -33,6 +33,6 @@ setup(
     install_requires=[
         "setuptools>=59",
         "frictionless==5.4.0",
-        "geonode_importer @ git+https://github.com/Thuenen-52North-Erweiterung-GeoNode/geonode-importer.git@master#egg=geonode_importer",
+        "geonode_importer>=1.0.3"
     ],
 )
