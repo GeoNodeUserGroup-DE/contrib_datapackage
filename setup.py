@@ -14,7 +14,7 @@ setup_requires = [
 
 setup(
     name="importer-datapackage",
-    version="0.0.1",
+    version="0.0.2",
     url="https://github.com/52north/geonode-contribs",
     description="Datapackage handler for the geonode-importer",
     long_description=read_file("README.md"),
@@ -33,6 +33,6 @@ setup(
     install_requires=[
         "setuptools>=59",
         "frictionless==5.4.0",
-        "geonode_importer>=1.0.3"
+        "geonode_importer>=1.0.5"
     ],
 )
