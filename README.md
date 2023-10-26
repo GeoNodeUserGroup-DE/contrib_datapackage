@@ -25,3 +25,9 @@ At the moment only CSV-files were tested.
 - no fancy formats or regexes
 - primary keys are imported without any database constraints
 - ...
+
+## Funding
+
+<img alt="Thünen Logo" align="middle" height="50" src="https://www.thuenen.de/typo3conf/ext/vc_theme/Resources/Public/Graphics/SVG-Logo.svg"/>
+
+This contrib app was funded by the [Thünen-Institute](https://www.thuenen.de)
