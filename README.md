@@ -31,6 +31,8 @@ A datapackage can be uploaded as ZIP-file.
 In the ZIP-file a `datapackage.json` is expected to be found, along with any other file referenced from the `datapackage.json`.
 At the moment only CSV-files were tested.
 
+You can use [this test zip file](./importer_datapackage/handlers/datapackage/data/valid_data.zip) to start.
+
 ## Limitations
 
 - no fancy formats or regexes
