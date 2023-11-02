@@ -1,18 +1,29 @@
 # Datapackage Support for geonode-importer
 
 This module provides a datapackage handler for the geonode-importer.
-The handler leverages the OGR VRT format to import layers described in a tabular data resource schema.
-To make this possible a schema mapping takes place. 
+The app is compatible with geonode-importer v1.0.5, but can be used only with GeoNode v4.2.x.
+
+The handler leverages the [OGR VRT format](https://gdal.org/drivers/vector/vrt.html) to import layers described in a [tabular data resource schema](https://specs.frictionlessdata.io/tabular-data-resource/).
+To make this possible a schema mapping takes place.
 
 The project is still a prototype and only a minimal set of possible features are supported.
+Feel free to contribute by [creating an issue](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/issues) [or even a PR](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/pulls) on GitHub.
 
 ## Installation
 
-The module can be installed as normal python module. 
-Once installed, the handler can be configured similary to the normal handlers provided by the geonode-importer.
+The module can be installed as normal python module.
+Add it to your `requirements.txt` and let it install via `pip`.
+Once installed, the `importer_datapackage.handlers.datapackage.handler.DataPackageFileHandler` has to be added to the `IMPORTER_HANDLERS`.
+Open the `settings.py` and add
 
-Note: At the time of writing, the geonode-importer is expected to relax assumptions on the layer import.
-Those are available under https://github.com/Thuenen-52North-Erweiterung-GeoNode:geonode-importer:allow-nonspatial-layer-import and hopefully merged to upstream.
+```py
+IMPORTER_HANDLERS = (
+    'importer_datapackage.handlers.datapackage.handler.DataPackageFileHandler',
+    *IMPORTER_HANDLERS,
+)
+```
+
+Note: The module will be compatible [starting from GeoNode v4.2.0](https://github.com/GeoNode/geonode/commit/9ca2f13a083e9ca37cd368106864f32e33176499).
 
 ## Upload
 
