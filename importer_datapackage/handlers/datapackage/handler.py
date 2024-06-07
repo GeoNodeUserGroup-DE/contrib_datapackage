@@ -226,3 +226,6 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         module = pkg_resources.files(sys.modules["importer"])
         resource = module.joinpath(f"handlers/datapackage/resources/{name}")
         return pkg_resources.as_file(resource)
+
+    def _select_valid_layers(self, all_layers):
+        return all_layers
