@@ -195,26 +195,14 @@ To enable the geonode-mapstore-plugin add the following plugin configuration to 
          "name":"DublinCoreDownload"
       },
       {
-         "name":"LayerDownload",
-         "cfg":{
-            "disablePluginIf":"{!state('selectedLayerPermissions').includes('download_resourcebase')}",
-            "formats":[
-               {
-                  "name":"application/wfs-collection-1.1",
-                  "label":"GML (WFS 1.1.0 FeatureCollection)",
-                  "type":"vector",
-                  "validServices":[
-                     "wps"
-                  ]
-               },
-               {
-                  "name":"text/csv",
-                  "label":"CSV",
-                  "type":"vector",
-                  "validServices":[
-                     "wps"
-                  ]
-               }
+         "name": "LayerDownload",
+         "cfg": {
+            "disablePluginIf": "{!state('selectedLayerPermissions').includes('download_resourcebase')}",
+            "defaultSelectedService": "wfs",
+            "hideServiceSelector": true,
+            "formats": [
+               {"name": "excel", "label": "excel", "validServices": ["wfs"]},
+               {"name": "csv", "label": "CSV", "validServices": ["wfs"]}
             ]
          }
       },
