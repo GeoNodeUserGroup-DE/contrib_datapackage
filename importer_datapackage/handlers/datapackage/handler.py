@@ -1,29 +1,28 @@
 import os
 import sys
 import logging
+
 import importlib.resources as pkg_resources
-
-from PIL import Image
-from io import BytesIO
 from pathlib import Path
+from osgeo import ogr
 
-from django.db.models import Q
 from django.conf import settings
-from geonode.layers.models import Dataset
+from django.db.models import Q
+
 from geonode.base.models import ResourceBase
+from geonode.layers.models import Dataset
 from geonode.resource.enumerator import ExecutionRequestAction as exa
 from geonode.utils import set_resource_default_links
 
-from importer.orchestrator import orchestrator
 from importer.handlers.common.vector import BaseVectorFileHandler
+from importer.orchestrator import orchestrator
 from importer.utils import ImporterRequestAction as ira
 
-from osgeo import ogr
 from frictionless import Package
 
-from .util import validate, process_rows
-from .mapper import SchemaToVrtMapper
 from .manager import datapackage_resource_manager
+from .mapper import SchemaToVrtMapper
+from .util import process_rows, validate
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +45,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             "importer.copy_dynamic_model",
             "importer.copy_geonode_data_table",
             "importer.publish_resource",
-            "importer.copy_geonode_resource"
+            "importer.copy_geonode_resource",
         ),
         ira.ROLLBACK.value: (
             "start_rollback",
@@ -57,11 +56,11 @@ class DataPackageFileHandler(BaseVectorFileHandler):
     @property
     def supported_file_extension_config(self):
         return {
-            "id": 'datapackage',
-            "label": 'Data Package',
-            "format": 'archive',
-            "ext": ['zip'],
-            "requires": ['json', 'csv'],
+            "id": "datapackage",
+            "label": "Data Package",
+            "format": "archive",
+            "ext": ["zip"],
+            "requires": ["json", "csv"],
             # TODO thumbnail
             # "optional": ['png']
         }
@@ -75,25 +74,25 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         base = _data.get("json_file")
         if not base:
             return False
-        
+
         filename = Path(base).name
         return filename == "datapackage.json"
 
     @staticmethod
     def is_valid(files, user):
         _file = files.get("json_file")
-        
+
         # raises exception with proper validation messages if not valid
         validate(_file)
         return True
-    
+
     def prepare_import(self, files, execution_id, **kwargs):
         _file = files.get("json_file")
         package = Package(_file)
-        
+
         for resource in package.resources:
             process_rows(resource)
-        
+
         folder = Path(_file).parent
         mapper = SchemaToVrtMapper(package)
         vrt_file = mapper.write_vrt_file(f"{package.name}.vrt", folder)
@@ -107,15 +106,22 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         _exec = self._get_execution_request_object(execution_id)
         input_params = _exec.input_params
         input_params.get("files").update(prepared_files)
-        
+
         _input = {**_exec.input_params}
-        orchestrator.update_execution_request_status(execution_id=str(execution_id), input_params=_input)
+        orchestrator.update_execution_request_status(
+            execution_id=str(execution_id), input_params=_input
+        )
 
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
     def create_geonode_resource(
-            self, layer_name: str, alternate: str, execution_id: str, resource_type: Dataset = Dataset, files=None
+        self,
+        layer_name: str,
+        alternate: str,
+        execution_id: str,
+        resource_type: Dataset = Dataset,
+        files=None,
     ):
         """
         Base function to create the resource into geonode. Each handler can specify
@@ -125,22 +131,22 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         _exec = self._get_execution_request_object(execution_id)
         _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
-        
+
         # if the layer exists, we just update the information of the dataset by
         # let it recreate the catalogue
         if not saved_dataset.exists() and _overwrite:
             logger.warning(
                 f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
             )
-        
+
         workspace = getattr(
             settings,
             "DEFAULT_WORKSPACE",
             getattr(settings, "CASCADE_WORKSPACE", "geonode"),
         )
-        
+
         # TODO store other metadata from datapackage (license, keywords, etc.)
-        
+
         saved_dataset = datapackage_resource_manager.create(
             None,
             resource_type=resource_type,
@@ -153,9 +159,8 @@ class DataPackageFileHandler(BaseVectorFileHandler):
                 dirty_state=True,
                 title=layer_name,
                 owner=_exec.user,
-                
                 # TODO do we need to keep reference to the originally uploaded file set
-                #files=list(set(list(_exec.input_params.get("files", {}).values()) or list(files)))
+                # files=list(set(list(_exec.input_params.get("files", {}).values()) or list(files)))
             ),
         )
 
@@ -176,12 +181,17 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         saved_dataset.refresh_from_db()
         return saved_dataset
 
-    def extract_resource_to_publish(self, files, action, layer_name, alternate, **kwargs):
+    def extract_resource_to_publish(
+        self, files, action, layer_name, alternate, **kwargs
+    ):
         if action == exa.COPY.value:
             return [
                 {
                     "name": alternate,
-                    "crs": ResourceBase.objects.filter(Q(alternate__icontains=layer_name) | Q(title__icontains=layer_name))
+                    "crs": ResourceBase.objects.filter(
+                        Q(alternate__icontains=layer_name)
+                        | Q(title__icontains=layer_name)
+                    )
                     .first()
                     .srid,
                 }
@@ -194,22 +204,28 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         return [
             {
                 "name": alternate or layer_name,
-                "crs": self.identify_authority(_l) if _l.GetSpatialRef() else 'EPSG:4326'
+                "crs": (
+                    self.identify_authority(_l) if _l.GetSpatialRef() else "EPSG:4326"
+                ),
             }
             for _l in layers
             if self.fixup_name(_l.GetName()) == layer_name
         ]
-        
+
     @staticmethod
-    def create_ogr2ogr_command(files, original_name, ovverwrite_layer, alternate):
-        '''
+    def create_ogr2ogr_command(files, original_name, overwrite, alternate):
+        """
         Define the ogr2ogr command to be executed.
         This is a default command that is needed to import a vector file
-        '''
-        return BaseVectorFileHandler.create_ogr2ogr_command(files, original_name, ovverwrite_layer, alternate)
-    
-    
+        """
+        return BaseVectorFileHandler.create_ogr2ogr_command(
+            files, original_name, overwrite, alternate
+        )
+
     def load_local_resource(self, name: str):
         module = pkg_resources.files(sys.modules["importer"])
         resource = module.joinpath(f"handlers/datapackage/resources/{name}")
         return pkg_resources.as_file(resource)
+
+    def _select_valid_layers(self, all_layers):
+        return all_layers
