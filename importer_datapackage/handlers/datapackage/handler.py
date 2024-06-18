@@ -11,6 +11,7 @@ from django.db.models import Q
 
 from geonode.base.models import ResourceBase
 from geonode.layers.models import Dataset
+from geonode.resource.manager import resource_manager
 from geonode.resource.enumerator import ExecutionRequestAction as exa
 from geonode.utils import set_resource_default_links
 
@@ -20,7 +21,6 @@ from importer.utils import ImporterRequestAction as ira
 
 from frictionless import Package
 
-from .manager import datapackage_resource_manager
 from .mapper import SchemaToVrtMapper
 from .util import process_rows, validate
 
@@ -147,7 +147,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         # TODO store other metadata from datapackage (license, keywords, etc.)
 
-        saved_dataset = datapackage_resource_manager.create(
+        saved_dataset = resource_manager.create(
             None,
             resource_type=resource_type,
             defaults=dict(
