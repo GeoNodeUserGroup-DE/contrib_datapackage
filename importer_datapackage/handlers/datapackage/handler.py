@@ -16,6 +16,7 @@ from django.db.models import Q
 from geonode.base.models import ResourceBase
 from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
+from geonode.resource.models import ExecutionRequest
 from geonode.resource.enumerator import ExecutionRequestAction as exa
 from geonode.geoserver.helpers import set_attributes
 from geonode.utils import set_resource_default_links
@@ -123,6 +124,16 @@ class DataPackageFileHandler(BaseVectorFileHandler):
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
+    def handle_sld_file(self, saved_dataset: Dataset, _exec: ExecutionRequest):
+        sld_file = self.load_local_resource("fake.sld")
+        resource_manager.exec(
+            "set_style",
+            None,
+            instance=saved_dataset,
+            sld_file=sld_file,
+            sld_uploaded=True,
+        )
+
     def create_geonode_resource(
         self,
         layer_name: str,
@@ -173,19 +184,11 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         )
 
         saved_dataset.refresh_from_db()
-
+        self.handle_sld_file(saved_dataset, _exec)
 
         with open(self.load_local_resource("table-icon.jpg"), "rb") as icon:
             content = icon.read()
             resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=content)
-
-        # with self.load_local_resource("table-icon.png") as icon:
-        #     # resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=icon)
-        #     with BytesIO() as output:
-        #         img = Image.open(icon)
-        #         img.save(output, format="PNG")
-        #         content = output.getvalue()
-        #     saved_dataset.save_thumbnail(icon.name, content)
 
         set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
