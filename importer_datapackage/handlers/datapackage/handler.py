@@ -1,10 +1,14 @@
+
 import os
 import sys
 import logging
 
 import importlib.resources as pkg_resources
+
+from io import BytesIO
 from pathlib import Path
 from osgeo import ogr
+from PIL import Image
 
 from django.conf import settings
 from django.db.models import Q
@@ -112,6 +116,9 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             execution_id=str(execution_id), input_params=_input
         )
 
+    def can_handle_sld_file():
+        return False
+
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
@@ -166,9 +173,13 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         saved_dataset.refresh_from_db()
 
+
+        with open(self.load_local_resource("table-icon.jpg"), "rb") as icon:
+            content = icon.read()
+            resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=content)
+
         # with self.load_local_resource("table-icon.png") as icon:
-        #     # binary = Image.open(icon)
-        #     # datapackage_resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=binary)
+        #     # resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=icon)
         #     with BytesIO() as output:
         #         img = Image.open(icon)
         #         img.save(output, format="PNG")
@@ -180,6 +191,46 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         saved_dataset.refresh_from_db()
         return saved_dataset
+
+    def overwrite_geonode_resource(
+        self,
+        layer_name: str,
+        alternate: str,
+        execution_id: str,
+        resource_type: Dataset = Dataset,
+        files=None,
+    ):
+        dataset = resource_type.objects.filter(alternate__icontains=alternate)
+
+        _exec = self._get_execution_request_object(execution_id)
+
+        _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
+        # if the layer exists, we just update the information of the dataset by
+        # let it recreate the catalogue
+        if dataset.exists() and _overwrite:
+            dataset = dataset.first()
+
+            dataset = resource_manager.update(
+                dataset.uuid, instance=dataset, files=files
+            )
+
+            self.handle_xml_file(dataset, _exec)
+            self.handle_sld_file(dataset, _exec)
+
+            dataset.refresh_from_db()
+            return dataset
+        elif not dataset.exists() and _overwrite:
+            logger.warning(
+                f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
+            )
+            return self.create_geonode_resource(
+                layer_name, alternate, execution_id, resource_type, files
+            )
+        elif not dataset.exists() and not _overwrite:
+            logger.warning(
+                "The resource does not exists, please use 'create_geonode_resource' to create one"
+            )
+        return
 
     def extract_resource_to_publish(
         self, files, action, layer_name, alternate, **kwargs
@@ -223,9 +274,8 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         )
 
     def load_local_resource(self, name: str):
-        module = pkg_resources.files(sys.modules["importer"])
-        resource = module.joinpath(f"handlers/datapackage/resources/{name}")
-        return pkg_resources.as_file(resource)
+        module = pkg_resources.files(sys.modules["importer_datapackage"])
+        return module.joinpath(f"handlers/datapackage/resources/{name}")
 
     def _select_valid_layers(self, all_layers):
         return all_layers
