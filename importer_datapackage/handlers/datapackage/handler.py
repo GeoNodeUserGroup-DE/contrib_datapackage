@@ -17,6 +17,7 @@ from geonode.base.models import ResourceBase
 from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
 from geonode.resource.enumerator import ExecutionRequestAction as exa
+from geonode.geoserver.helpers import set_attributes
 from geonode.utils import set_resource_default_links
 
 from importer.handlers.common.vector import BaseVectorFileHandler
@@ -25,7 +26,7 @@ from importer.utils import ImporterRequestAction as ira
 
 from frictionless import Package
 
-from .mapper import SchemaToVrtMapper
+from .mapper import TabularDataHelper
 from .util import process_rows, validate
 
 logger = logging.getLogger(__name__)
@@ -98,7 +99,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             process_rows(resource)
 
         folder = Path(_file).parent
-        mapper = SchemaToVrtMapper(package)
+        mapper = TabularDataHelper(package)
         vrt_file = mapper.write_vrt_file(f"{package.name}.vrt", folder)
 
         # update base file to be imported by ogr2ogr
@@ -188,6 +189,13 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
+
+        package_file = files.get("package_file")
+        package = Package(package_file)
+
+        mapper = TabularDataHelper(package)
+        attribute_map = mapper.parse_attribute_map(saved_dataset.name)
+        set_attributes(saved_dataset, attribute_map, _overwrite)
 
         saved_dataset.refresh_from_db()
         return saved_dataset

@@ -12,7 +12,7 @@ from django.contrib.auth import get_user_model
 from geonode.storage.manager import StorageManager
 
 from importer_datapackage.handlers.datapackage.handler import DataPackageFileHandler
-from importer_datapackage.handlers.datapackage.mapper import SchemaToVrtMapper
+from importer_datapackage.handlers.datapackage.mapper import TabularDataHelper
 from importer_datapackage.handlers.datapackage.exceptions import InvalidDataPackageFileException
 
 def _absolute_path(filename: str):
@@ -37,7 +37,7 @@ class TestSchemaToVrtMapper(TestCase):
     def setUpClass(cls) -> None:
         super().setUpClass()
         cls.package = Package(_absolute_path("data/datapackage.json"))
-        cls.mapper = SchemaToVrtMapper(cls.package)
+        cls.mapper = TabularDataHelper(cls.package)
 
     def test_write_vrt_file(self):
         with TemporaryDirectory() as tmp_dir:

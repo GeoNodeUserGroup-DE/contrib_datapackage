@@ -29,11 +29,13 @@
         "fields": [
           {
             "name": "PointID",
+            "title": "Point ID",
             "type": "integer",
             "description": "Sampling point identifier"
           },
           {
             "name": "HorizontID",
+            "title": "Horizont ID",
             "type": "integer",
             "description": "Horizon number of each individual soil profile"
           },
@@ -104,6 +106,7 @@
         "fields": [
           {
             "name": "PointID",
+            "title": "Point ID",
             "description": "Sampling point identifier",
             "type": "integer"
           },
@@ -188,59 +191,69 @@
           },
           {
             "name": "pH_H2O",
+            "title": "pH of H2O",
             "description": "pH-value in water [mol l-1] (DIN ISO 10390, modified)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "EC_H2O",
+            "title": "EC of H2O",
             "description": "Electric conductivity in water [µS cm-1] (DIN EN ISO 27888)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "pH_CaCl2",
+            "title": "pH of CaCl2",
             "description": "pH-vlaue in Claciumchlorid [mol l-1] (DIN ISO 10390)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "TC",
+            "title": "Total Carbon",
             "description": "Total carbon[g kg-1] (DIN ISO 10694:1995)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "TOC",
+            "title": "Organic Carbon",
             "description": "Organic carbon [g kg-1]  (DIN ISO 10694:1995)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "TIC",
+            "title": "Inorganic Carbon",
             "description": "Inorganic carbon [g kg-1] (DIN 19539, modified)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "TN",
+            "title": "Total Nitrogen",
             "description": "Total nitrogen [g kg-1]  (DIN EN 16168:2012)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "TS",
+            "title": "Total Sulphur",
             "description": "Total sulphur [g kg-1] (DIN ISO 15178:02-2001)",
             "type": "string"
           },
           {
             "name": "BD_FS",
+            "title": "Buld Density of Fine Soil",
             "description": "Bulk density of the fine soil [g cm-3] (HFA A2.8, verändert)",
             "type": "number",
             "decimalChar": ","
           },
           {
             "name": "FSS",
+            "title": "Fine Soil Stock",
             "description": "Fine soil stock [Mg ha-1]",
             "type": "number",
             "decimalChar": ","
