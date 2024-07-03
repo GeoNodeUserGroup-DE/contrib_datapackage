@@ -3,11 +3,23 @@ from functools import reduce
 
 import xml.etree.cElementTree as ET
 
-class SchemaToVrtMapper():
+class TabularDataHelper():
 
     def __init__(self, package):
         self.package = package
         self.resources = package.resources or []
+        
+    
+    def parse_attribute_map(self, resource_name: str) -> list:
+        """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
+        
+        resource = self.package.get_resource(resource_name)
+        schema = resource.schema
+        attribute_map = [
+            [field.name, _parse_field_type(field)[0], field.description, field.title or field.name, None]
+            for field in schema.fields
+        ]
+        return attribute_map
         
     def write_vrt_file(self, filename: str, folder: Path):
         
@@ -23,7 +35,7 @@ class SchemaToVrtMapper():
             for field in schema.fields:
                 (type, subtype) = _parse_field_type(field)
                 normalized_fieldname = normalize(field.name).lower()
-                ET.SubElement(layer, "Field", src=field.name, name=normalized_fieldname, type=type, subtype=subtype)
+                ET.SubElement(layer, "Field", src=field.name, name=normalized_fieldname, type=type, subtype=subtype,)
 
         # write VRT file
         vrt_filename = Path(folder, filename) if folder else filename
