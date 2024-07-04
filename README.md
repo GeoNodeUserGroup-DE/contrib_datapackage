@@ -1,17 +1,16 @@
 # Datapackage Support for geonode-importer
 
-This module provides a datapackage handler for the geonode-importer.
+This contrib app provides a datapackage handler for the geonode-importer.
 The app aims to be compatible with geonode-importer v1.0.9, but can be used only with GeoNode v4.3.x.
 
-The handler leverages the [OGR VRT format](https://gdal.org/drivers/vector/vrt.html) to import layers described in a [tabular data resource schema](https://specs.frictionlessdata.io/tabular-data-resource/).
+The handler leverages the [OGR VRT format](https://gdal.org/drivers/vector/vrt.html) to import non-spatial datasets described in a [tabular data resource schema](https://specs.frictionlessdata.io/tabular-data-resource/).
 To make this possible a schema mapping takes place.
 
-> :alert Warning:
+> :wrench: Development Hint
 >
-> The project is under development and only a minimal set of possible features are supported.
 > Check out the [development setup](https://github.com/GeoNodeUserGroup-DE/geonode-dev-datapackage) which is base on the [Geonode Docker blueprint](https://github.com/GeoNodeUserGroup-DE/geonode-blueprint-docker).
->
-> Feel free to contribute by [creating an issue](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/issues) [or even a PR](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/pulls) on GitHub.
+
+Feel free to contribute by [creating an issue](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/issues) [or even a PR](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/pulls) on GitHub.
 
 ## Installation
 
@@ -23,9 +22,16 @@ The following steps are necessary so GeoNode is able to handle the frictionless 
 
 ### Install Datapackage Handler
 
-The module can be installed as normal python module.
-Add it to your `requirements.txt` and let it install via `pip`.
-For development let `pip` install direcly the branch of your current interest by adding to the `requirements.txt`:
+The module can be installed as normal Django contrib app: 
+
+```python
+INSTALLED_APPS += (
+   datapackage
+)
+```
+
+Install all necessary dependencies via `pip install -r requirements.txt`.
+For development let `pip` install the branch of your current interest:
 
 ```
 -e git+https://github.com/GeoNodeUserGroup-DE/importer-datapackage.git@main#egg=importer_datapackage
@@ -235,6 +241,7 @@ You can use [this test zip file](./importer_datapackage/handlers/datapackage/dat
 ## Limitations
 
 - no fancy formats or regexes
+- geonode-mapstore-client currently [mixes file specs for upload](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/issues/3)
 - primary keys are imported without any database constraints
 - ...
 
