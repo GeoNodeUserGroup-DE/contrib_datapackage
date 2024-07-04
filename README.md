@@ -26,7 +26,7 @@ The module can be installed as normal Django contrib app:
 
 ```python
 INSTALLED_APPS += (
-   datapackage
+   importer_datapackage
 )
 ```
 
