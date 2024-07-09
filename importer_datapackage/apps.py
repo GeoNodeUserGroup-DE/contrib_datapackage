@@ -2,6 +2,7 @@
 import logging
 
 from django.apps import apps, AppConfig
+from django.utils.module_loading import import_string
 
 
 logger = logging.getLogger(__name__)
@@ -12,8 +13,13 @@ _original_generator = None
 
 def run_setup_hooks(*args, **kwargs):
     from django.conf import settings
-    _original_generator = settings.THUMBNAIL_GENERATOR
-    settings.THUMBNAIL_GENERATOR = "importer_datapackage.apps.create_thumbnail"
+    global _original_generator
+    _original_generator = import_string(settings.THUMBNAIL_GENERATOR)
+    setattr(
+        settings,
+        "THUMBNAIL_GENERATOR",
+        "importer_datapackage.apps.create_thumbnail",
+    )
 
 
 def create_thumbnail(instance, overwrite=False, check_bbox=False):
