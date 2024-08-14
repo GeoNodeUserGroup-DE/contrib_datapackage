@@ -197,7 +197,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         package = Package(package_file)
 
         mapper = TabularDataHelper(package)
-        attribute_map = mapper.parse_attribute_map(saved_dataset.name)
+        attribute_map = mapper.parse_attribute_map(layer_name)
         set_attributes(saved_dataset, attribute_map, _overwrite)
 
         saved_dataset.refresh_from_db()
