@@ -8,7 +8,13 @@ To make this possible a schema mapping takes place.
 
 > :wrench: Development Hint
 >
-> Check out the [development setup](https://github.com/GeoNodeUserGroup-DE/geonode-dev-datapackage) which is base on the [Geonode Docker blueprint](https://github.com/GeoNodeUserGroup-DE/geonode-blueprint-docker).
+> There are lots of adjustments made in both `GeoNode`, `geonode-mapstore-client` which are necessary to integrate `tabular` data.
+> You should be able to the see all needed changes by comparing branches:
+>
+> * 🔄 [Compare GeoNode changes](https://github.com/GeoNode/geonode/compare/GeoNode:4.3.0..GeoNodeUserGroup-DE:datapackage_tabular-data)
+> * 🔄 [Compare geonode-mapstore-client changes](https://github.com/GeoNode/geonode-mapstore-client/compare/GeoNode:v4.3.0..GeoNodeUserGroup-DE:datapackage_tabular-data) (you can ignore all changes under `/geonode_mapstore_client/client/static/mapstore/dist` of course)
+>
+> Check out the [development setup](https://github.com/GeoNodeUserGroup-DE/geonode-dev-datapackage) (based on the [Geonode Docker blueprint](https://github.com/GeoNodeUserGroup-DE/geonode-blueprint-docker)).
 
 Feel free to contribute by [creating an issue](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/issues) [or even a PR](https://github.com/GeoNodeUserGroup-DE/importer-datapackage/pulls) on GitHub.
 
