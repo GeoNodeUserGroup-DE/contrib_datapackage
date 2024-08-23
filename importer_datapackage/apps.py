@@ -24,7 +24,7 @@ def run_setup_hooks(*args, **kwargs):
 
 def create_thumbnail(instance, overwrite=False, check_bbox=False):
     subtype = instance.subtype or ""
-    if not subtype.include("tabular"):
+    if "tabular" not in subtype:
         _original_generator(instance, overwrite, check_bbox)
     else:
         # do nothing
