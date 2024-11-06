@@ -1,7 +1,5 @@
 from setuptools import find_packages, setup
 
-import importer_datapackage
-
 
 def read_file(path: str):
     with open(path, "r") as file:
@@ -14,7 +12,7 @@ setup_requires = [
 
 setup(
     name="importer-datapackage",
-    version="0.0.3",
+    version="0.1.0",
     url="https://github.com/52north/geonode-contribs",
     description="Datapackage handler for the geonode-importer",
     long_description=read_file("README.md"),
@@ -23,7 +21,7 @@ setup(
     platforms="any",
     classifiers=[
         "Environment :: Web Environment",
-        "Framework :: Django :: 3.0",
+        "Framework :: Django",
         "License :: OSI Approved :: GNU General Public License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3.8",
