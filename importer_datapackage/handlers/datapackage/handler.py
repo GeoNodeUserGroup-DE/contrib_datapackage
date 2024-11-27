@@ -140,7 +140,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         alternate: str,
         execution_id: str,
         resource_type: Dataset = Dataset,
-        files=None,
+        asset=None,
     ):
         """
         Base function to create the resource into geonode. Each handler can specify
@@ -149,14 +149,6 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         saved_dataset = resource_type.objects.filter(alternate__icontains=alternate)
 
         _exec = self._get_execution_request_object(execution_id)
-        _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
-
-        # if the layer exists, we just update the information of the dataset by
-        # let it recreate the catalogue
-        if not saved_dataset.exists() and _overwrite:
-            logger.warning(
-                f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
-            )
 
         workspace = getattr(
             settings,
@@ -164,23 +156,22 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             getattr(settings, "CASCADE_WORKSPACE", "geonode"),
         )
 
+        _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
+        # if the layer exists, we just update the information of the dataset by
+        # let it recreate the catalogue
+        if not saved_dataset.exists() and _overwrite:
+            logger.warning(
+                f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
+            )
+
         # TODO store other metadata from datapackage (license, keywords, etc.)
 
         saved_dataset = resource_manager.create(
             None,
             resource_type=resource_type,
-            defaults=dict(
-                name=alternate,
-                workspace=workspace,
-                store=os.environ.get("GEONODE_GEODATABASE", "geonode_data"),
-                subtype="tabular",
-                alternate=f"{workspace}:{alternate}",
-                dirty_state=True,
-                title=layer_name,
-                owner=_exec.user,
-                # TODO do we need to keep reference to the originally uploaded file set
-                # files=list(set(list(_exec.input_params.get("files", {}).values()) or list(files)))
-            ),
+            defaults=self.generate_resource_payload(
+                layer_name, alternate, asset, _exec, workspace
+            )
         )
 
         saved_dataset.refresh_from_db()
@@ -193,7 +184,8 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
 
-        package_file = files.get("package_file")
+        _files = _exec.input_params.get("files")
+        package_file = _files.get("package_file")
         package = Package(package_file)
 
         mapper = TabularDataHelper(package)
@@ -202,6 +194,19 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
         saved_dataset.refresh_from_db()
         return saved_dataset
+
+    def generate_resource_payload(self, layer_name, alternate, asset, _exec, workspace):
+        return dict(
+            name=alternate,
+            workspace=workspace,
+            store=os.environ.get("GEONODE_GEODATABASE", "geonode_data"),
+            subtype="tabular",
+            alternate=f"{workspace}:{alternate}",
+            dirty_state=True,
+            title=layer_name,
+            owner=_exec.user,
+            asset=asset,
+        )
 
     def overwrite_geonode_resource(
         self,
