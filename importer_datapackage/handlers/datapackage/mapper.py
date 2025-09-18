@@ -10,13 +10,13 @@ class TabularDataHelper():
         self.resources = package.resources or []
         
     
-    def parse_attribute_map(self, resource_name: str) -> list:
+    def parse_attribute_map(self, resource_name: str, fixup_name) -> list:
         """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
         
         resource = self.package.get_resource(resource_name)
         schema = resource.schema
         attribute_map = [
-            [field.name, _parse_field_type(field)[0], field.description, field.title or field.name, None]
+            [fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, None]
             for field in schema.fields
         ]
         return attribute_map
