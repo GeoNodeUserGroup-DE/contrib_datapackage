@@ -1,22 +1,26 @@
+import logging
 from pathlib import Path
-from functools import reduce
+from collections.abc import Callable
 
 import xml.etree.cElementTree as ET
 
+logger = logging.getLogger(__name__)
+
 class TabularDataHelper():
 
-    def __init__(self, package):
+    def __init__(self, package, fixup_name: Callable):
         self.package = package
         self.resources = package.resources or []
+        self.fixup_name = fixup_name
         
     
-    def parse_attribute_map(self, resource_name: str, fixup_name) -> list:
+    def parse_attribute_map(self, resource_name: str) -> list:
         """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
         
         resource = self.package.get_resource(resource_name)
         schema = resource.schema
         attribute_map = [
-            [fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, None]
+            [self.fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, None]
             for field in schema.fields
         ]
         return attribute_map
@@ -31,23 +35,38 @@ class TabularDataHelper():
             layer = ET.SubElement(root, "OGRVRTLayer", name=resource.name)
             source = Path(folder, resource.path) if folder else resource.path
             ET.SubElement(layer, "SrcDataSource").text = str(source)
+            ET.SubElement(layer, "ExtentXMin").text = "-89.0"
+            ET.SubElement(layer, "ExtentYMin").text = "-179"
+            ET.SubElement(layer, "ExtentXMax").text = "89"
+            ET.SubElement(layer, "ExtentYMax").text = "179"
+
             schema = resource.schema
             for field in schema.fields:
                 (type, subtype) = _parse_field_type(field)
-                normalized_fieldname = normalize(field.name).lower()
-                ET.SubElement(layer, "Field", src=field.name, name=normalized_fieldname, type=type, subtype=subtype,)
+                normalized_fieldname = self.fixup_name(field.name)
+
+                ET.SubElement(
+                    layer, "Field", 
+                    src=field.name or "", 
+                    name=normalized_fieldname or "",
+                    # alternativeName=field.title or "", # GDAL >=3.7
+                    # comment=field.description or "", # GDAL >=3.7
+                    type=type,
+                    subtype=subtype,
+                )
 
         # write VRT file
         vrt_filename = Path(folder, filename) if folder else filename
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
-        tree.write(vrt_filename)
+        try:
+            with open(vrt_filename, "wb") as f:
+                tree.write(f, encoding="UTF-8")
+        except TypeError:
+            logger.error(f"Could not create VRT file '{vrt_filename}'", exc_info=True)
 
         return vrt_filename
 
-def normalize(fieldname):
-    return fieldname.replace(" ", "_") if fieldname else fieldname
-    
 
 def _parse_field_type(field) -> tuple:
 

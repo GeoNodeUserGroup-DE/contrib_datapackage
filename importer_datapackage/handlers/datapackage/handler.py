@@ -5,12 +5,11 @@ import logging
 
 import importlib.resources as pkg_resources
 
-from io import BytesIO
 from pathlib import Path
 from osgeo import ogr
-from PIL import Image
 
 from django.conf import settings
+from django.db.utils import DataError
 from django.db.models import Q
 
 from geonode.base.models import ResourceBase
@@ -18,7 +17,6 @@ from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
 from geonode.resource.models import ExecutionRequest
 from geonode.resource.enumerator import ExecutionRequestAction as exa
-from geonode.geoserver.helpers import set_attributes
 from geonode.utils import set_resource_default_links
 
 from importer.handlers.common.vector import BaseVectorFileHandler
@@ -100,12 +98,13 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             process_rows(resource)
 
         folder = Path(_file).parent
-        mapper = TabularDataHelper(package)
+        mapper = TabularDataHelper(package, self.fixup_name)
         vrt_file = mapper.write_vrt_file(f"{package.name}.vrt", folder)
 
         # update base file to be imported by ogr2ogr
         prepared_files = {
             "base_file": str(vrt_file),
+            # "sld_file": str(self.load_local_resource("fake.sld")),
             "package_file": _file,
         }
         files.update(prepared_files)
@@ -118,21 +117,21 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             execution_id=str(execution_id), input_params=_input
         )
 
-    def can_handle_sld_file():
-        return False
+    # def can_handle_sld_file():
+    #     return True
 
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
-    def handle_sld_file(self, saved_dataset: Dataset, _exec: ExecutionRequest):
-        sld_file = self.load_local_resource("fake.sld")
-        resource_manager.exec(
-            "set_style",
-            None,
-            instance=saved_dataset,
-            sld_file=sld_file,
-            sld_uploaded=True,
-        )
+    # def handle_sld_file(self, saved_dataset: Dataset, _exec: ExecutionRequest):
+    #     sld_file = self.load_local_resource("fake.sld")
+    #     resource_manager.exec(
+    #         "set_style",
+    #         None,
+    #         instance=saved_dataset,
+    #         sld_file=sld_file,
+    #         sld_uploaded=True,
+    #     )
 
     def create_geonode_resource(
         self,
@@ -190,10 +189,33 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         package_file = _files.get("package_file")
         package = Package(package_file)
 
-        mapper = TabularDataHelper(package)
-        attribute_map = mapper.parse_attribute_map(layer_name, self.fixup_name)
-        set_attributes(saved_dataset, attribute_map, _overwrite)
+        mapper = TabularDataHelper(package, self.fixup_name)
+        attributes = saved_dataset.attribute_set.all()
+        attribute_map = mapper.parse_attribute_map(layer_name)
+        for la in attributes:
+            for attribute in attribute_map:
+                field, ftype, description, label, display_order = attribute
+                if field == la.attribute:
+                    try:
+                        la.description = description
+                        la.attribute_label = label
+                        la.save()
+                    except DataError as e:
+                        logger.error(f"Cannot save attribute {field} for layer {saved_dataset.name}: {e}")
 
+                    continue
+
+        saved_dataset.set_bbox_polygon(
+            # for 'non-spatial' data we apply world bbox
+            bbox=[
+                -179.0, # west
+                -89.0, # south,
+                179.0, # east,
+                89.0, #n north,
+            ],
+            srid="EPSG:4326",
+        )
+        saved_dataset.save()
         saved_dataset.refresh_from_db()
         return saved_dataset
 
