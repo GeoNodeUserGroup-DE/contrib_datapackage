@@ -176,7 +176,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         )
 
         saved_dataset.refresh_from_db()
-        self.handle_sld_file(saved_dataset, _exec)
+        # self.handle_sld_file(saved_dataset, _exec)
 
         with open(self.load_local_resource("table-icon.jpg"), "rb") as icon:
             content = icon.read()
@@ -215,6 +215,12 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             ],
             srid="EPSG:4326",
         )
+
+        # TODO update feature boundaries via featuretype recalculate
+        # https://docs.geoserver.org/latest/en/user/rest/api/featuretypes.html#recalculate
+        # https://gis.stackexchange.com/questions/199239/update-programmatically-bbox-of-wms-geoserver-layer
+
+
         saved_dataset.save()
         saved_dataset.refresh_from_db()
         return saved_dataset
@@ -257,7 +263,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             )
 
             self.handle_xml_file(dataset, _exec)
-            self.handle_sld_file(dataset, _exec)
+            # self.handle_sld_file(dataset, _exec)
 
             dataset.refresh_from_db()
             return dataset
