@@ -31,6 +31,6 @@ setup(
     install_requires=[
         "setuptools>=59",
         "frictionless==5.17.0",
-        "geonode_importer>=1.0.9"
+        "geonode_importer==1.0.9"
     ],
 )
