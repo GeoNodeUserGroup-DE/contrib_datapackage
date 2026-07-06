@@ -12,7 +12,7 @@ setup_requires = [
 
 setup(
     name="importer-datapackage",
-    version="4.4.3+datapackage003.dev",
+    version="5.0.0+datapackage001",
     url="https://github.com/52north/geonode-contribs",
     description="Datapackage handler for the geonode-importer",
     long_description=read_file("README.md"),
@@ -31,6 +31,8 @@ setup(
     install_requires=[
         "setuptools>=59",
         "frictionless>=5.18.0",
-        "geonode_importer>=1.1.0"
+        # NOTE: no geonode_importer dependency on GeoNode >= 5 — the importer
+        # is part of GeoNode core (geonode.upload), and geonode_importer's
+        # pins (gdal<=3.4.3) conflict with GeoNode 5 installations.
     ],
 )
