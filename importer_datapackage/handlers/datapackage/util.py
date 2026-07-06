@@ -1,61 +1,62 @@
 import os
-from pathlib import Path
-
-from frictionless.fields import NumberField
-from frictionless import (
-    validate as fl_validate,
-    Package, Resource, Pipeline, steps
-)
-
 
 from .exceptions import InvalidDataPackageFileException
 
 
-def _handle_error(report_or_task):
+def _raise_validation_error(report_or_task):
     if report_or_task.valid:
         return
 
-    if report_or_task.errors:
-        for error in report_or_task.errors:
-            if error.message:
-                raise InvalidDataPackageFileException(error.message)
-            else:
-                raise InvalidDataPackageFileException("TODO handle nested errors!")
+    for error in report_or_task.errors or []:
+        if error.message:
+            raise InvalidDataPackageFileException(error.message)
+    raise InvalidDataPackageFileException()
 
 
-def validate(file):
-    if not file:
+def validate(file_path):
+    if not file_path:
         raise InvalidDataPackageFileException("base file is not provided")
 
-    report = fl_validate(file)
-    _handle_error(report)
-    if report.tasks:
-        [_handle_error(task) for task in report.tasks]
+    from frictionless import validate as frictionless_validate
+
+    report = frictionless_validate(file_path)
+    _raise_validation_error(report)
+    for task in report.tasks or []:
+        _raise_validation_error(task)
 
 
 def process_rows(resource):
+    from frictionless import Pipeline, steps
+    from frictionless.fields import NumberField
+
     schema = resource.schema
 
-    def to_point_decimal(field):
-        return steps.cell_convert(field_name=field.name, function=lambda x: float)
+    number_fields = (
+        field
+        for field in schema.fields
+        if isinstance(field, NumberField) and getattr(field, "decimal_char", ".") != "."
+    )
 
-    fields = schema.fields
-    fields = filter(lambda f: type(f) == NumberField, fields)
-    fields = filter(lambda f: hasattr(f, 'decimal_char') and f.decimal_char != '.', fields)
-    to_point_decimal_steps = map(lambda f: to_point_decimal(f), fields)
-    
-    pipeline = Pipeline(steps=[
-        steps.table_normalize(),
-        #*to_point_decimal_steps
-    ],)
-    
-    orig_path = resource.path
-    orig_file = f"{resource.basepath}/{orig_path}"
-    # reset path after processing pipeline
-    res = resource.transform(pipeline)
-    resource.path = orig_path
-    # do some override ceremony
+    conversion_steps = [
+        steps.cell_convert(
+            field_name=field.name,
+            function=lambda value, dc=field.decimal_char: float(value.replace(dc, ".")) if isinstance(value, str) else value,
+        )
+        for field in number_fields
+    ]
+
+    pipeline = Pipeline(
+        steps=[
+            steps.table_normalize(),
+            *conversion_steps,
+        ]
+    )
+
+    original_path = resource.path
+    original_file = f"{resource.basepath}/{original_path}"
+    transformed = resource.transform(pipeline)
+    resource.path = original_path
+
     processed_file = f"{resource.basepath}/{resource.name}_processed.csv"
-    res.write(processed_file)
-    os.replace(processed_file, orig_file)
-
+    transformed.write(processed_file)
+    os.replace(processed_file, original_file)
