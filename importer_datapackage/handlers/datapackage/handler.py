@@ -1,23 +1,33 @@
+
 import logging
-from pathlib import Path
 import zipfile
 
+from pathlib import Path
+from osgeo import ogr
+
 from django.db.utils import DataError
+
 from geonode.base.models import ResourceBase
 from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
+
 from geonode.upload.handlers.common.vector import BaseVectorFileHandler
 from geonode.upload.orchestrator import orchestrator
-from osgeo import ogr
+
+from frictionless import Package
 
 from .mapper import TabularDataHelper
 from .util import process_rows, validate
 
-
-logger = logging.getLogger("importer")
+logger = logging.getLogger(__name__)
 
 
 class DataPackageFileHandler(BaseVectorFileHandler):
+    """
+    Handler to import Data Package files into GeoNode data db
+    It must provide the task_lists required to comple the upload
+    """
+
     @property
     def supported_file_extension_config(self):
         return {
@@ -35,6 +45,10 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
     @staticmethod
     def can_handle(_data) -> bool:
+        """
+        This endpoint will return True or False if with the info provided
+        the handler is able to handle the file or not
+        """
         json_file = _data.get("json_file")
         if not json_file:
             base_file = _data.get("base_file")
@@ -69,40 +83,43 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
     @staticmethod
     def is_valid(files, user, **kwargs):
-        validate(files.get("json_file"))
+        _file = files.get("json_file")
+
+        # raises exception with proper validation messages if not valid
+        validate(_file)
         return BaseVectorFileHandler.is_valid(files, user, **kwargs)
 
     def prepare_import(self, files, execution_id, **kwargs):
-        from frictionless import Package
-
-        package_file = files.get("json_file")
-        package = Package(package_file)
+        _file = files.get("json_file")
+        package = Package(_file)
 
         for resource in package.resources:
             process_rows(resource)
 
-        folder = Path(package_file).parent
+        folder = Path(_file).parent
         mapper = TabularDataHelper(package, self.fixup_name)
         vrt_file = mapper.write_vrt_file(f"{package.name}.vrt", folder)
 
+        # update base file to be imported by ogr2ogr
         prepared_files = {
             "base_file": str(vrt_file),
-            "package_file": package_file,
+            "package_file": _file,
         }
         files.update(prepared_files)
+        _exec = self._get_execution_request_object(execution_id)
+        input_params = _exec.input_params
+        input_params.get("files").update(prepared_files)
 
-        execution = self._get_execution_request_object(execution_id)
-        input_params = execution.input_params.copy()
-        input_files = input_params.get("files", {}).copy()
-        input_files.update(prepared_files)
-        input_params["files"] = input_files
-        orchestrator.update_execution_request_status(execution_id=str(execution_id), input_params=input_params)
+        _input = {**_exec.input_params}
+        orchestrator.update_execution_request_status(
+            execution_id=str(execution_id), input_params=_input
+        )
 
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
-    def generate_resource_payload(self, layer_name, alternate, asset, execution, workspace):
-        payload = super().generate_resource_payload(layer_name, alternate, asset, execution, workspace)
+    def generate_resource_payload(self, layer_name, alternate, asset, _exec, workspace):
+        payload = super().generate_resource_payload(layer_name, alternate, asset, _exec, workspace)
         payload["subtype"] = "tabular"
         return payload
 
@@ -114,7 +131,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         resource_type: Dataset = Dataset,
         asset=None,
     ):
-        dataset = super().create_geonode_resource(
+        saved_dataset = super().create_geonode_resource(
             layer_name,
             alternate,
             execution_id,
@@ -122,43 +139,50 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             asset=asset,
         )
 
-        execution = self._get_execution_request_object(execution_id)
-        package_file = execution.input_params.get("files", {}).get("package_file")
-        if not package_file:
-            return dataset
+        _exec = self._get_execution_request_object(execution_id)
 
-        from frictionless import Package
+        _files = _exec.input_params.get("files", {})
+        package_file = _files.get("package_file")
+        if not package_file:
+            return saved_dataset
 
         package = Package(package_file)
+
         mapper = TabularDataHelper(package, self.fixup_name)
+        attributes = saved_dataset.attribute_set.all()
         attribute_map = mapper.parse_attribute_map(layer_name)
+        for la in attributes:
+            for attribute in attribute_map:
+                field, ftype, description, label, display_order = attribute
+                if field == la.attribute:
+                    try:
+                        la.description = description
+                        la.attribute_label = label
+                        la.display_order = display_order
+                        la.save()
+                    except DataError as e:
+                        logger.error(f"Cannot save attribute {field} for layer {saved_dataset.name}: {e}")
 
-        for dataset_attribute in dataset.attribute_set.all():
-            for field_name, _field_type, description, label, display_order in attribute_map:
-                if field_name != dataset_attribute.attribute:
-                    continue
-                try:
-                    dataset_attribute.description = description
-                    dataset_attribute.attribute_label = label
-                    dataset_attribute.display_order = display_order
-                    dataset_attribute.save()
-                except DataError as exc:
-                    logger.error(
-                        "Cannot save attribute %s for layer %s: %s",
-                        field_name,
-                        dataset.name,
-                        exc,
-                    )
-                break
+                    break
 
-        dataset.set_bbox_polygon(bbox=[-180.0, -90.0, 180.0, 90.0], srid="EPSG:4326")
+        saved_dataset.set_bbox_polygon(
+            # for 'non-spatial' data we apply world bbox
+            bbox=[
+                -180.0,  # west
+                -90.0,  # south,
+                180.0,  # east,
+                90.0,  # north,
+            ],
+            srid="EPSG:4326",
+        )
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
-        dataset.save()
-        dataset.refresh_from_db()
-        return dataset
 
-    def handle_thumbnail(self, saved_dataset: Dataset, execution):
+        saved_dataset.save()
+        saved_dataset.refresh_from_db()
+        return saved_dataset
+
+    def handle_thumbnail(self, saved_dataset: Dataset, _exec):
         try:
             resource_manager.set_thumbnail(None, instance=saved_dataset)
         except Exception:
-            logger.info("Skipping thumbnail generation for tabular dataset %s", saved_dataset.pk)
+            logger.info(f"Skipping thumbnail generation for tabular dataset {saved_dataset.pk}")

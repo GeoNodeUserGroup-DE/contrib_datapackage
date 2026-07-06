@@ -1,33 +1,32 @@
 import logging
-import xml.etree.cElementTree as ET
-from collections.abc import Callable
 from pathlib import Path
+from collections.abc import Callable
 
+import xml.etree.cElementTree as ET
 
 logger = logging.getLogger(__name__)
 
+class TabularDataHelper():
 
-class TabularDataHelper:
     def __init__(self, package, fixup_name: Callable):
         self.package = package
         self.resources = package.resources or []
         self.fixup_name = fixup_name
-
+        
+    
     def parse_attribute_map(self, resource_name: str) -> list:
+        """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
+        
         resource = self._find_resource(resource_name)
         schema = resource.schema
-        return [
-            [
-                self.fixup_name(field.name),
-                _parse_field_type(field)[0],
-                field.description,
-                field.title or field.name,
-                index,
-            ]
+        attribute_map = [
+            [self.fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, index]
             for index, field in enumerate(schema.fields)
         ]
+        return attribute_map
 
     def _find_resource(self, resource_name: str):
+        """Find a resource by name, falling back to normalized-name matching."""
         try:
             resource = self.package.get_resource(resource_name)
         except Exception:
@@ -45,9 +44,10 @@ class TabularDataHelper:
         raise LookupError(f'Resource "{resource_name}" does not exist in datapackage')
 
     def write_vrt_file(self, filename: str, folder: Path):
+        
         if not filename:
-            raise ValueError("filename is missing")
-
+            raise Exception("filename is missing")
+        
         root = ET.Element("OGRVRTDataSource")
         for resource in self.resources:
             layer = ET.SubElement(root, "OGRVRTLayer", name=resource.name)
@@ -60,40 +60,60 @@ class TabularDataHelper:
             ET.SubElement(layer, "ExtentXMax").text = "180"
             ET.SubElement(layer, "ExtentYMax").text = "90"
 
-            for field in resource.schema.fields:
-                field_type, subtype = _parse_field_type(field)
+            schema = resource.schema
+            for field in schema.fields:
+                (type, subtype) = _parse_field_type(field)
+                normalized_fieldname = self.fixup_name(field.name)
+
                 ET.SubElement(
-                    layer,
-                    "Field",
-                    src=field.name or "",
-                    name=self.fixup_name(field.name) or "",
-                    type=field_type,
+                    layer, "Field", 
+                    src=field.name or "", 
+                    name=normalized_fieldname or "",
+                    # alternativeName=field.title or "", # GDAL >=3.7
+                    # comment=field.description or "", # GDAL >=3.7
+                    type=type,
                     subtype=subtype,
                 )
 
-        vrt_filename = Path(folder, filename) if folder else Path(filename)
+        # write VRT file
+        vrt_filename = Path(folder, filename) if folder else filename
         tree = ET.ElementTree(root)
         ET.indent(tree, space="  ")
         try:
-            with open(vrt_filename, "wb") as stream:
-                tree.write(stream, encoding="UTF-8")
-        except (TypeError, OSError):
-            logger.exception("Could not create VRT file '%s'", vrt_filename)
-            raise
+            with open(vrt_filename, "wb") as f:
+                tree.write(f, encoding="UTF-8")
+        except TypeError:
+            logger.error(f"Could not create VRT file '{vrt_filename}'", exc_info=True)
 
         return vrt_filename
 
 
-def _parse_field_type(field) -> tuple[str, str]:
-    if not field.type:
-        return "String", "None"
+def _parse_field_type(field) -> tuple:
 
-    mapping = {
-        "number": "Real",
-        "integer": "Integer",
-        "string": "String",
-        "date": "Date",
-        "time": "Time",
-        "datetime": "DateTime",
-    }
-    return mapping.get(field.type, "String"), "None"
+    # string -> String
+    # number -> Real (precision?)
+    # integer -> Integer
+    # boolean (trueValues falseValues) -> String + subtype Boolean
+
+    if not field.type:
+        # String is the default 
+        type = "String"
+    else:
+        if (field.type == "number"):
+            type = "Real"
+        elif (field.type == "integer"):
+            type = "Integer"
+        elif (field.type == "string"):
+            type = "String"
+        elif (field.type == "date"):
+            type = "Date"
+        elif (field.type == "time"):
+            type = "Time"
+        elif (field.type == "datetime"):
+            type = "DateTime"
+        else:
+            # fallback
+            type = "String"
+
+    subtype = "None"
+    return (type, subtype)
