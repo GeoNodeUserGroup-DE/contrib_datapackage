@@ -35,6 +35,13 @@ class TabularDataHelper():
             layer = ET.SubElement(root, "OGRVRTLayer", name=resource.name)
             source = Path(folder, resource.path) if folder else resource.path
             ET.SubElement(layer, "SrcDataSource").text = str(source)
+
+            # Without this, an empty CSV cell for a numeric (Integer/Real) field
+            # is cast to 0 instead of NULL by GDAL's VRT driver, silently turning
+            # missing values into real data. Date/DateTime fields are unaffected.
+            open_options = ET.SubElement(layer, "OpenOptions")
+            ET.SubElement(open_options, "OOI", key="EMPTY_STRING_AS_NULL").text = "YES"
+
             ET.SubElement(layer, "ExtentXMin").text = "-89.0"
             ET.SubElement(layer, "ExtentYMin").text = "-179"
             ET.SubElement(layer, "ExtentXMax").text = "89"
@@ -45,15 +52,16 @@ class TabularDataHelper():
                 (type, subtype) = _parse_field_type(field)
                 normalized_fieldname = self.fixup_name(field.name)
 
-                ET.SubElement(
-                    layer, "Field", 
-                    src=field.name or "", 
-                    name=normalized_fieldname or "",
-                    # alternativeName=field.title or "", # GDAL >=3.7
-                    # comment=field.description or "", # GDAL >=3.7
-                    type=type,
-                    subtype=subtype,
-                )
+                attrib = {
+                    "src": field.name or "",
+                    "name": normalized_fieldname or "",
+                    # "alternativeName": field.title or "", # GDAL >=3.7
+                    # "comment": field.description or "", # GDAL >=3.7
+                    "type": type,
+                }
+                if subtype:
+                    attrib["subtype"] = subtype
+                ET.SubElement(layer, "Field", **attrib)
 
         # write VRT file
         vrt_filename = Path(folder, filename) if folder else filename
@@ -95,5 +103,5 @@ def _parse_field_type(field) -> tuple:
             # fallback
             type = "String"
 
-    subtype = "None"
+    subtype = None
     return (type, subtype)

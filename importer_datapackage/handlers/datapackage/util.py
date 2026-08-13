@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-from frictionless.fields import NumberField
 from frictionless import (
     validate as fl_validate,
     Package, Resource, Pipeline, steps
@@ -34,21 +33,10 @@ def validate(file):
 
 
 def process_rows(resource):
-    schema = resource.schema
-
-    def to_point_decimal(field):
-        return steps.cell_convert(field_name=field.name, function=lambda x: float)
-
-    fields = schema.fields
-    fields = filter(lambda f: type(f) == NumberField, fields)
-    fields = filter(lambda f: hasattr(f, 'decimal_char') and f.decimal_char != '.', fields)
-    to_point_decimal_steps = map(lambda f: to_point_decimal(f), fields)
-    
     pipeline = Pipeline(steps=[
         steps.table_normalize(),
-        #*to_point_decimal_steps
     ],)
-    
+
     orig_path = resource.path
     orig_file = f"{resource.basepath}/{orig_path}"
     # reset path after processing pipeline
