@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 
-from frictionless.fields import NumberField
 from frictionless import (
     validate as fl_validate,
     Package, Resource, Pipeline, steps
@@ -51,7 +50,7 @@ def process_rows(resource):
         steps.table_normalize(),
         *to_point_decimal_steps
     ],)
-    
+
     orig_path = resource.path
     orig_file = f"{resource.basepath}/{orig_path}"
     # reset path after processing pipeline
