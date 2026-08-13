@@ -36,6 +36,13 @@ class TabularDataHelper():
             source = Path(folder, resource.path) if folder else resource.path
             ET.SubElement(layer, "SrcDataSource").text = str(source)
 
+            # Without this, GDAL falls back to matching the VRT layer's own
+            # "name" against the underlying CSV's layer name (its filename
+            # without extension). If a resource's declared name differs from
+            # its CSV file's basename, that lookup silently fails and the
+            # layer imports with zero features - no error anywhere.
+            ET.SubElement(layer, "SrcLayer").text = Path(source).stem
+
             # Without this, an empty CSV cell for a numeric (Integer/Real) field
             # is cast to 0 instead of NULL by GDAL's VRT driver, silently turning
             # missing values into real data. Date/DateTime fields are unaffected.

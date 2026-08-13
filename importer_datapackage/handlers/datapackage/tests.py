@@ -155,13 +155,19 @@ class TestVrtNullHandling(TestCase):
     Regression coverage for a GDAL VRT quirk: casting an empty CSV cell to an
     Integer/Real VRT field yields 0, not NULL (Date/DateTime are unaffected).
     See the EMPTY_STRING_AS_NULL OpenOptions in mapper.write_vrt_file.
+
+    The resource name deliberately differs from the CSV filename (a common,
+    valid datapackage pattern) to also guard against a separate GDAL VRT bug:
+    without an explicit SrcLayer, GDAL matches the VRT layer's own "name"
+    against the source CSV's layer name (its filename minus extension), and
+    silently imports zero features when they don't match.
     """
 
     _DESCRIPTOR = {
         "name": "synthetic",
         "resources": [
             {
-                "name": "data",
+                "name": "synthetic_data",
                 "path": "data.csv",
                 "format": "csv",
                 "schema": {
@@ -186,6 +192,7 @@ class TestVrtNullHandling(TestCase):
 
             datasource = ogr.Open(str(vrt_file))
             layer = datasource.GetLayer(0)
+            self.assertEqual(layer.GetFeatureCount(), 2)
 
             populated = layer.GetNextFeature()
             self.assertTrue(populated.IsFieldSetAndNotNull("id"))
