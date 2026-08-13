@@ -105,8 +105,8 @@ class TestHandler(TestCase):
         json_file = files.get("json_file")
         self.assertTrue("datapackage.json" in str(json_file))
 
-    @patch('importer.handlers.common.vector.BaseVectorFileHandler._get_execution_request_object')
-    @patch('importer.orchestrator.ImportOrchestrator.update_execution_request_status')
+    @patch('geonode.upload.handlers.common.vector.BaseVectorFileHandler._get_execution_request_object')
+    @patch('geonode.upload.orchestrator.ImportOrchestrator.update_execution_request_status')
     def test_prepare_import_provides_vrt_file(self, get_exec_request, update):
         valid_zip = _absolute_path("data/valid_data.zip")
         files = _unzip({"zip_file": valid_zip})

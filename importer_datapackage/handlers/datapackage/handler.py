@@ -1,27 +1,18 @@
 
-import os
-import sys
 import logging
-
-import importlib.resources as pkg_resources
+import zipfile
 
 from pathlib import Path
 from osgeo import ogr
 
-from django.conf import settings
 from django.db.utils import DataError
-from django.db.models import Q
 
 from geonode.base.models import ResourceBase
 from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
-from geonode.resource.models import ExecutionRequest
-from geonode.resource.enumerator import ExecutionRequestAction as exa
-from geonode.utils import set_resource_default_links
 
-from importer.handlers.common.vector import BaseVectorFileHandler
-from importer.orchestrator import orchestrator
-from importer.utils import ImporterRequestAction as ira
+from geonode.upload.handlers.common.vector import BaseVectorFileHandler
+from geonode.upload.orchestrator import orchestrator
 
 from frictionless import Package
 
@@ -37,36 +28,19 @@ class DataPackageFileHandler(BaseVectorFileHandler):
     It must provide the task_lists required to comple the upload
     """
 
-    ACTIONS = {
-        exa.IMPORT.value: (
-            "start_import",
-            "importer.import_resource",
-            "importer.publish_resource",
-            "importer.create_geonode_resource",
-        ),
-        exa.COPY.value: (
-            "start_copy",
-            "importer.copy_dynamic_model",
-            "importer.copy_geonode_data_table",
-            "importer.publish_resource",
-            "importer.copy_geonode_resource",
-        ),
-        ira.ROLLBACK.value: (
-            "start_rollback",
-            "importer.rollback",
-        ),
-    }
-
     @property
     def supported_file_extension_config(self):
         return {
             "id": "datapackage",
-            "label": "Data Package",
-            "format": "archive",
-            "ext": ["zip"],
-            "requires": ["json", "csv"],
-            # TODO thumbnail
-            # "optional": ['png']
+            "formats": [
+                {
+                    "label": "Data Package",
+                    "required_ext": ["zip"],
+                    "optional_ext": ["xml", "sld"],
+                }
+            ],
+            "actions": list(self.TASKS.keys()),
+            "type": "vector",
         }
 
     @staticmethod
@@ -75,20 +49,45 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         This endpoint will return True or False if with the info provided
         the handler is able to handle the file or not
         """
-        base = _data.get("json_file")
-        if not base:
-            return False
+        json_file = _data.get("json_file")
+        if not json_file:
+            base_file = _data.get("base_file")
+            if not base_file:
+                return False
 
-        filename = Path(base).name
-        return filename == "datapackage.json"
+            base_path = Path(base_file) if isinstance(base_file, str) else Path(base_file.name)
+            if base_path.suffix.lower() != ".zip":
+                return False
+
+            try:
+                with zipfile.ZipFile(base_file, "r") as archive:
+                    names = {Path(name).name for name in archive.namelist()}
+            except zipfile.BadZipFile:
+                return False
+            finally:
+                if hasattr(base_file, "seek"):
+                    base_file.seek(0)
+
+            return "datapackage.json" in names and BaseVectorFileHandler.can_handle(_data)
+
+        filename = Path(json_file).name if isinstance(json_file, str) else json_file.name
+        return filename == "datapackage.json" and BaseVectorFileHandler.can_handle(_data)
 
     @staticmethod
-    def is_valid(files, user):
+    def extract_params_from_data(_data, action=None):
+        extracted_params, files = BaseVectorFileHandler.extract_params_from_data(_data, action=action)
+        base_file = files.get("base_file")
+        if isinstance(base_file, str) and base_file.lower().endswith(".zip"):
+            files["zip_file"] = base_file
+        return extracted_params, files
+
+    @staticmethod
+    def is_valid(files, user, **kwargs):
         _file = files.get("json_file")
 
         # raises exception with proper validation messages if not valid
         validate(_file)
-        return True
+        return BaseVectorFileHandler.is_valid(files, user, **kwargs)
 
     def prepare_import(self, files, execution_id, **kwargs):
         _file = files.get("json_file")
@@ -104,7 +103,6 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         # update base file to be imported by ogr2ogr
         prepared_files = {
             "base_file": str(vrt_file),
-            # "sld_file": str(self.load_local_resource("fake.sld")),
             "package_file": _file,
         }
         files.update(prepared_files)
@@ -117,21 +115,13 @@ class DataPackageFileHandler(BaseVectorFileHandler):
             execution_id=str(execution_id), input_params=_input
         )
 
-    # def can_handle_sld_file():
-    #     return True
-
     def get_ogr2ogr_driver(self):
         return ogr.GetDriverByName("VRT")
 
-    # def handle_sld_file(self, saved_dataset: Dataset, _exec: ExecutionRequest):
-    #     sld_file = self.load_local_resource("fake.sld")
-    #     resource_manager.exec(
-    #         "set_style",
-    #         None,
-    #         instance=saved_dataset,
-    #         sld_file=sld_file,
-    #         sld_uploaded=True,
-    #     )
+    def generate_resource_payload(self, layer_name, alternate, asset, _exec, workspace):
+        payload = super().generate_resource_payload(layer_name, alternate, asset, _exec, workspace)
+        payload["subtype"] = "tabular"
+        return payload
 
     def create_geonode_resource(
         self,
@@ -140,53 +130,22 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         execution_id: str,
         resource_type: Dataset = Dataset,
         asset=None,
-        custom={},
     ):
-        """
-        Base function to create the resource into geonode. Each handler can specify
-        and handle the resource in a different way
-        """
-        saved_dataset = resource_type.objects.filter(alternate__icontains=alternate)
+        saved_dataset = super().create_geonode_resource(
+            layer_name,
+            alternate,
+            execution_id,
+            resource_type=resource_type,
+            asset=asset,
+        )
 
         _exec = self._get_execution_request_object(execution_id)
 
-        workspace = getattr(
-            settings,
-            "DEFAULT_WORKSPACE",
-            getattr(settings, "CASCADE_WORKSPACE", "geonode"),
-        )
-
-        _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
-        # if the layer exists, we just update the information of the dataset by
-        # let it recreate the catalogue
-        if not saved_dataset.exists() and _overwrite:
-            logger.warning(
-                f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
-            )
-
-        # TODO store other metadata from datapackage (license, keywords, etc.)
-
-        saved_dataset = resource_manager.create(
-            None,
-            resource_type=resource_type,
-            defaults=self.generate_resource_payload(
-                layer_name, alternate, asset, _exec, workspace
-            ),
-            custom=custom,
-        )
-
-        saved_dataset.refresh_from_db()
-        # self.handle_sld_file(saved_dataset, _exec)
-
-        with open(self.load_local_resource("table-icon.jpg"), "rb") as icon:
-            content = icon.read()
-            resource_manager.set_thumbnail(None, instance=saved_dataset, thumbnail=content)
-
-        set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
-        ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
-
-        _files = _exec.input_params.get("files")
+        _files = _exec.input_params.get("files", {})
         package_file = _files.get("package_file")
+        if not package_file:
+            return saved_dataset
+
         package = Package(package_file)
 
         mapper = TabularDataHelper(package, self.fixup_name)
@@ -199,131 +158,31 @@ class DataPackageFileHandler(BaseVectorFileHandler):
                     try:
                         la.description = description
                         la.attribute_label = label
+                        la.display_order = display_order
                         la.save()
                     except DataError as e:
                         logger.error(f"Cannot save attribute {field} for layer {saved_dataset.name}: {e}")
 
-                    continue
+                    break
 
         saved_dataset.set_bbox_polygon(
             # for 'non-spatial' data we apply world bbox
             bbox=[
-                -179.0, # west
-                -89.0, # south,
-                179.0, # east,
-                89.0, #n north,
+                -180.0,  # west
+                -90.0,  # south,
+                180.0,  # east,
+                90.0,  # north,
             ],
             srid="EPSG:4326",
         )
-
-        # TODO update feature boundaries via featuretype recalculate
-        # https://docs.geoserver.org/latest/en/user/rest/api/featuretypes.html#recalculate
-        # https://gis.stackexchange.com/questions/199239/update-programmatically-bbox-of-wms-geoserver-layer
-
+        ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
 
         saved_dataset.save()
         saved_dataset.refresh_from_db()
         return saved_dataset
 
-    def generate_resource_payload(self, layer_name, alternate, asset, _exec, workspace):
-        return dict(
-            name=alternate,
-            workspace=workspace,
-            store=os.environ.get("GEONODE_GEODATABASE", "geonode_data"),
-            subtype="tabular",
-            alternate=f"{workspace}:{alternate}",
-            dirty_state=True,
-            title=layer_name,
-            owner=_exec.user,
-            asset=asset,
-        )
-
-    def overwrite_geonode_resource(
-        self,
-        layer_name: str,
-        alternate: str,
-        execution_id: str,
-        resource_type: Dataset = Dataset,
-        asset=None,
-        custom={},
-        
-    ):
-        dataset = resource_type.objects.filter(alternate__icontains=alternate)
-
-        _exec = self._get_execution_request_object(execution_id)
-
-        _overwrite = _exec.input_params.get("overwrite_existing_layer", False)
-        # if the layer exists, we just update the information of the dataset by
-        # let it recreate the catalogue
-        if dataset.exists() and _overwrite:
-            dataset = dataset.first()
-
-            dataset = resource_manager.update(
-                dataset.uuid, instance=dataset,  files=asset.location
-            )
-
-            self.handle_xml_file(dataset, _exec)
-            # self.handle_sld_file(dataset, _exec)
-
-            dataset.refresh_from_db()
-            return dataset
-        elif not dataset.exists() and _overwrite:
-            logger.warning(
-                f"The dataset required {alternate} does not exists, but an overwrite is required, the resource will be created"
-            )
-            return self.create_geonode_resource(
-                layer_name, alternate, execution_id, resource_type, asset, custom=custom,
-            )
-        elif not dataset.exists() and not _overwrite:
-            logger.warning(
-                "The resource does not exists, please use 'create_geonode_resource' to create one"
-            )
-        return
-
-    def extract_resource_to_publish(
-        self, files, action, layer_name, alternate, **kwargs
-    ):
-        if action == exa.COPY.value:
-            return [
-                {
-                    "name": alternate,
-                    "crs": ResourceBase.objects.filter(
-                        Q(alternate__icontains=layer_name)
-                        | Q(title__icontains=layer_name)
-                    )
-                    .first()
-                    .srid,
-                }
-            ]
-
-        vrt_file = files.get("base_file")
-        layers = self.get_ogr2ogr_driver().Open(vrt_file)
-        if not layers:
-            return []
-        return [
-            {
-                "name": alternate or layer_name,
-                "crs": (
-                    self.identify_authority(_l) if _l.GetSpatialRef() else "EPSG:4326"
-                ),
-            }
-            for _l in layers
-            if self.fixup_name(_l.GetName()) == layer_name
-        ]
-
-    @staticmethod
-    def create_ogr2ogr_command(files, original_name, overwrite, alternate):
-        """
-        Define the ogr2ogr command to be executed.
-        This is a default command that is needed to import a vector file
-        """
-        return BaseVectorFileHandler.create_ogr2ogr_command(
-            files, original_name, overwrite, alternate
-        )
-
-    def load_local_resource(self, name: str):
-        module = pkg_resources.files(sys.modules["importer_datapackage"])
-        return module.joinpath(f"handlers/datapackage/resources/{name}")
-
-    def _select_valid_layers(self, all_layers):
-        return all_layers
+    def handle_thumbnail(self, saved_dataset: Dataset, _exec):
+        try:
+            resource_manager.set_thumbnail(None, instance=saved_dataset)
+        except Exception:
+            logger.info(f"Skipping thumbnail generation for tabular dataset {saved_dataset.pk}")

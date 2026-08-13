@@ -33,8 +33,22 @@ def validate(file):
 
 
 def process_rows(resource):
+    schema = resource.schema
+
+    def to_point_decimal(field):
+        return steps.cell_convert(
+            field_name=field.name,
+            function=lambda x, dc=field.decimal_char: float(x.replace(dc, ".")) if isinstance(x, str) else x,
+        )
+
+    fields = schema.fields
+    fields = filter(lambda f: type(f) == NumberField, fields)
+    fields = filter(lambda f: hasattr(f, 'decimal_char') and f.decimal_char != '.', fields)
+    to_point_decimal_steps = map(lambda f: to_point_decimal(f), fields)
+    
     pipeline = Pipeline(steps=[
         steps.table_normalize(),
+        *to_point_decimal_steps
     ],)
 
     orig_path = resource.path

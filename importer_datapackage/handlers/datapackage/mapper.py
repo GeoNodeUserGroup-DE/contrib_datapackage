@@ -17,14 +17,32 @@ class TabularDataHelper():
     def parse_attribute_map(self, resource_name: str) -> list:
         """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
         
-        resource = self.package.get_resource(resource_name)
+        resource = self._find_resource(resource_name)
         schema = resource.schema
         attribute_map = [
-            [self.fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, None]
-            for field in schema.fields
+            [self.fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, index]
+            for index, field in enumerate(schema.fields)
         ]
         return attribute_map
-        
+
+    def _find_resource(self, resource_name: str):
+        """Find a resource by name, falling back to normalized-name matching."""
+        try:
+            resource = self.package.get_resource(resource_name)
+        except Exception:
+            resource = None
+        if resource is not None:
+            return resource
+
+        normalized_target = (resource_name or "").strip().lower()
+        for package_resource in self.resources:
+            original_name = (package_resource.name or "").strip().lower()
+            normalized_name = self.fixup_name(package_resource.name)
+            if original_name == normalized_target or normalized_name == normalized_target:
+                return package_resource
+
+        raise LookupError(f'Resource "{resource_name}" does not exist in datapackage')
+
     def write_vrt_file(self, filename: str, folder: Path):
         
         if not filename:
@@ -49,10 +67,12 @@ class TabularDataHelper():
             open_options = ET.SubElement(layer, "OpenOptions")
             ET.SubElement(open_options, "OOI", key="EMPTY_STRING_AS_NULL").text = "YES"
 
-            ET.SubElement(layer, "ExtentXMin").text = "-89.0"
-            ET.SubElement(layer, "ExtentYMin").text = "-179"
-            ET.SubElement(layer, "ExtentXMax").text = "89"
-            ET.SubElement(layer, "ExtentYMax").text = "179"
+            ET.SubElement(layer, "GeometryType").text = "wkbNone"
+            ET.SubElement(layer, "LayerSRS").text = "EPSG:4326"
+            ET.SubElement(layer, "ExtentXMin").text = "-180"
+            ET.SubElement(layer, "ExtentYMin").text = "-90"
+            ET.SubElement(layer, "ExtentXMax").text = "180"
+            ET.SubElement(layer, "ExtentYMax").text = "90"
 
             schema = resource.schema
             for field in schema.fields:
