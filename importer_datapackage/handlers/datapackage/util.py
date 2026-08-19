@@ -5,6 +5,7 @@ from frictionless import (
     validate as fl_validate,
     Package, Resource, Pipeline, steps
 )
+from frictionless.fields import NumberField
 
 
 from .exceptions import InvalidDataPackageFileException

@@ -677,6 +677,49 @@ At the moment only CSV-files were tested.
 
 You can use [this test zip file](./importer_datapackage/handlers/datapackage/data/valid_data.zip) to start.
 
+## Running the tests
+
+The suite needs a full GeoNode installation (PostGIS, GDAL, frictionless), so it
+runs inside the same containers CI uses:
+
+```sh
+docker compose --env-file .env_test -f docker-compose-test.yaml up -d --build
+
+# One-off: create the test databases. CREATE EXTENSION postgis needs superuser,
+# which the geonode roles deliberately do not have, so postgres creates them.
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T db \
+    psql -U postgres -c "CREATE DATABASE test_geonode OWNER geonode;"
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T db \
+    psql -U postgres -c "CREATE DATABASE test_geonode_data OWNER geonode_data;"
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T db \
+    psql -U postgres -d test_geonode -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T db \
+    psql -U postgres -d test_geonode_data -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T django bash -lc \
+    'cd /usr/src/contrib_datapackage && set -a && . ./.env_test && set +a &&
+     DATABASE_URL="postgis://geonode:geonode@db:5432/test_geonode" \
+     GEODATABASE_URL="postgis://geonode_data:geonode_data@db:5432/test_geonode_data" \
+     python /usr/src/geonode/manage.py migrate --noinput'
+
+# Then, as often as you like - the checkout is bind-mounted, so no rebuild needed:
+docker compose --env-file .env_test -f docker-compose-test.yaml exec -T django bash -lc \
+    'cd /usr/src/contrib_datapackage && ./runtest.sh'
+```
+
+`runtest.sh` accepts extra arguments, e.g. a single test:
+
+```sh
+./runtest.sh importer_datapackage.handlers.datapackage.tests.TestAttributeTableFallback
+```
+
+The GeoNode revision under test is a build argument - by default the fork's
+`main`, which carries the `tabular` subtype support this app depends on:
+
+```sh
+docker compose --env-file .env_test -f docker-compose-test.yaml build \
+    --build-arg GEONODE_REF=some-other-branch
+```
+
 ## Limitations
 
 - no fancy formats or regexes

@@ -1,5 +1,8 @@
+.git
+.github
 __pycache__
-importer_datapackage.egg-info
+*.pyc
+*.egg-info
 .coverage
 .coverage.*
 coverage.xml
