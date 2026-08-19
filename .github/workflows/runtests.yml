@@ -1,0 +1,34 @@
+name: Run test suite
+
+on:
+  push:
+    branches:
+    - main
+  pull_request:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Start containers
+      run: docker compose -f "docker-compose-test.yaml" up -d --build
+    - name: Prepare test databases
+      run: docker exec django4datapackage /bin/sh -c "sh /usr/src/contrib_datapackage/entrypoint_test.sh"
+    - name: Run importer_datapackage tests
+      run: docker exec django4datapackage /bin/sh -c "cd /usr/src/contrib_datapackage && sh runtest.sh"
+    - name: Coverage comment
+      id: coverage_comment
+      uses: py-cov-action/python-coverage-comment-action@v3
+      with:
+        GITHUB_TOKEN: ${{ github.token }}
+    - name: Store Pull Request comment to be posted
+      uses: actions/upload-artifact@v4
+      if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+      with:
+        name: python-coverage-comment-action
+        path: python-coverage-comment-action.txt
+    - name: Stop containers
+      if: always()
+      run: docker compose -f "docker-compose-test.yaml" down

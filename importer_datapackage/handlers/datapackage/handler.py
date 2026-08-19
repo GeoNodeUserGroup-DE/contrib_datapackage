@@ -13,6 +13,7 @@ from django.db.utils import DataError
 from django.db.models import Q
 
 from geonode.base.models import ResourceBase
+from geonode.geoserver.helpers import set_attributes
 from geonode.layers.models import Dataset
 from geonode.resource.manager import resource_manager
 from geonode.resource.models import ExecutionRequest
@@ -185,25 +186,7 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         set_resource_default_links(saved_dataset.get_real_instance(), saved_dataset)
         ResourceBase.objects.filter(alternate=alternate).update(dirty_state=False)
 
-        _files = _exec.input_params.get("files")
-        package_file = _files.get("package_file")
-        package = Package(package_file)
-
-        mapper = TabularDataHelper(package, self.fixup_name)
-        attributes = saved_dataset.attribute_set.all()
-        attribute_map = mapper.parse_attribute_map(layer_name)
-        for la in attributes:
-            for attribute in attribute_map:
-                field, ftype, description, label, display_order = attribute
-                if field == la.attribute:
-                    try:
-                        la.description = description
-                        la.attribute_label = label
-                        la.save()
-                    except DataError as e:
-                        logger.error(f"Cannot save attribute {field} for layer {saved_dataset.name}: {e}")
-
-                    continue
+        self.apply_datapackage_attributes(saved_dataset, layer_name, _exec)
 
         saved_dataset.set_bbox_polygon(
             # for 'non-spatial' data we apply world bbox
@@ -224,6 +207,75 @@ class DataPackageFileHandler(BaseVectorFileHandler):
         saved_dataset.save()
         saved_dataset.refresh_from_db()
         return saved_dataset
+
+    def apply_datapackage_attributes(
+        self, saved_dataset: Dataset, layer_name: str, _exec: ExecutionRequest
+    ):
+        """
+        Bring the dataset's attribute table in line with the datapackage schema:
+        create it from the descriptor when GeoServer did not deliver one (see
+        ensure_attributes), then apply the declared descriptions and labels.
+        """
+        _files = _exec.input_params.get("files")
+        package_file = _files.get("package_file")
+        package = Package(package_file)
+
+        mapper = TabularDataHelper(package, self.fixup_name)
+        attribute_map = mapper.parse_attribute_map(layer_name)
+
+        self.ensure_attributes(saved_dataset, attribute_map)
+
+        for la in saved_dataset.attribute_set.all():
+            for attribute in attribute_map:
+                field, ftype, description, label, display_order = attribute
+                if field == la.attribute:
+                    try:
+                        la.description = description
+                        la.attribute_label = label
+                        la.save()
+                    except DataError as e:
+                        logger.error(f"Cannot save attribute {field} for layer {saved_dataset.name}: {e}")
+
+                    continue
+
+    def ensure_attributes(self, saved_dataset: Dataset, attribute_map: list):
+        """
+        Guarantee the dataset ends up with an attribute table.
+
+        GeoNode derives the whole attribute table from a single WFS
+        DescribeFeatureType round-trip, made deep inside resource_manager.create()
+        (geonode.geoserver.helpers.set_attributes_from_geoserver). That call fails
+        silently in three compounding ways:
+
+          * a GeoServer ServiceExceptionReport is well-formed XML and is returned
+            with HTTP 200, so it parses into an empty attribute list without ever
+            raising - and the retry list in geonode.utils.HttpClient only covers
+            connection errors and 5xx,
+          * the WMS GetFeatureInfo fallback sits in the except branch that never
+            runs, and could not work anyway for the geometry-less tables we
+            publish,
+          * both the failure and the resulting empty list are logged at debug
+            level only.
+
+        The stock vector handler survives this because it retries the same call
+        via handle_xml_file() -> resource_manager.update(); we do not, so a single
+        hiccup left the upload reporting success with no attribute table at all,
+        and the very same package imported fine on the next attempt.
+        See zalf-rdm/geonode#655 and zalf-rdm/geonode#705.
+
+        The datapackage descriptor already carries the authoritative schema, so
+        use it whenever GeoServer did not deliver one.
+        """
+        if saved_dataset.attribute_set.exists():
+            return
+
+        logger.warning(
+            f"GeoServer reported no attributes for {saved_dataset.alternate}, "
+            "falling back to the schema declared in the datapackage"
+        )
+        # Nothing to overwrite - the guard above makes this purely additive, but
+        # it keeps set_attributes() from preferring stored values over ours.
+        set_attributes(saved_dataset, attribute_map, overwrite=True)
 
     def generate_resource_payload(self, layer_name, alternate, asset, _exec, workspace):
         return dict(
@@ -264,6 +316,11 @@ class DataPackageFileHandler(BaseVectorFileHandler):
 
             self.handle_xml_file(dataset, _exec)
             # self.handle_sld_file(dataset, _exec)
+
+            # Both resource_manager.update() calls above re-run
+            # set_attributes_from_geoserver(); an empty WFS answer there does not
+            # just skip the attribute table, it deletes the existing one.
+            self.apply_datapackage_attributes(dataset, layer_name, _exec)
 
             dataset.refresh_from_db()
             return dataset

@@ -15,13 +15,27 @@ class TabularDataHelper():
         
     
     def parse_attribute_map(self, resource_name: str) -> list:
-        """ Of type: [ [field, ftype, description, label, display_oder], ... ]"""
-        
+        """
+        The datapackage schema in the shape GeoNode's Attribute table expects:
+        [ [field, ftype, description, label, display_order], ... ]
+
+        ftype is the XSD type GeoNode stores in Attribute.attribute_type - the
+        same one it would otherwise read back from GeoServer's WFS
+        DescribeFeatureType - derived from the very OGR type we write into the
+        VRT, so the declared type cannot drift from the imported column.
+        """
+
         resource = self.package.get_resource(resource_name)
         schema = resource.schema
         attribute_map = [
-            [self.fixup_name(field.name), _parse_field_type(field)[0], field.description, field.title or field.name, None]
-            for field in schema.fields
+            [
+                self.fixup_name(field.name),
+                _xsd_field_type(field),
+                field.description,
+                field.title or field.name,
+                display_order,
+            ]
+            for display_order, field in enumerate(schema.fields, start=1)
         ]
         return attribute_map
         
@@ -112,3 +126,20 @@ def _parse_field_type(field) -> tuple:
 
     subtype = None
     return (type, subtype)
+
+
+# OGR field type (see _parse_field_type) -> the XSD type GeoServer reports for
+# the PostGIS column ogr2ogr creates from it.
+_OGR_TO_XSD_TYPE = {
+    "String": "xsd:string",
+    "Integer": "xsd:int",
+    "Real": "xsd:double",
+    "Date": "xsd:date",
+    "Time": "xsd:time",
+    "DateTime": "xsd:dateTime",
+}
+
+
+def _xsd_field_type(field) -> str:
+    (type, _) = _parse_field_type(field)
+    return _OGR_TO_XSD_TYPE.get(type, "xsd:string")
