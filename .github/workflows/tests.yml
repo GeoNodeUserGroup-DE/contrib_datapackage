@@ -1,0 +1,93 @@
+name: Run test suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Test Suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build the stack images
+        run: docker compose --env-file .env_test -f docker-compose-test.yaml build --progress plain
+
+      - name: Start the stack
+        run: docker compose --env-file .env_test -f docker-compose-test.yaml up -d
+
+      - name: Wait for the django container to be responsive
+        run: |
+          DC="docker compose --env-file .env_test -f docker-compose-test.yaml"
+          for _ in $(seq 1 60); do
+            if $DC exec -T django true </dev/null 2>/dev/null; then
+              echo "django container is responsive"; exit 0
+            fi
+            sleep 5
+          done
+          echo "django container never became responsive"
+          $DC ps
+          exit 1
+
+      - name: Prepare test databases
+        # Django needs CREATE EXTENSION postgis, which requires superuser. Rather
+        # than granting SUPERUSER to the geonode roles, the databases are created
+        # here by postgres with the extension installed, then migrated once so the
+        # suite can run with --keepdb.
+        run: |
+          DC="docker compose --env-file .env_test -f docker-compose-test.yaml"
+          $DC exec -T db psql -U postgres -q -c "CREATE DATABASE test_geonode OWNER geonode;" </dev/null
+          $DC exec -T db psql -U postgres -q -c "CREATE DATABASE test_geonode_data OWNER geonode_data;" </dev/null
+          $DC exec -T db psql -U postgres -q -d test_geonode -c "CREATE EXTENSION IF NOT EXISTS postgis;" </dev/null
+          $DC exec -T db psql -U postgres -q -d test_geonode_data -c "CREATE EXTENSION IF NOT EXISTS postgis;" </dev/null
+
+          $DC exec -T django bash -lc '
+            cd /usr/src/contrib_datapackage
+            set -a; . ./.env_test; set +a
+            DATABASE_URL="postgis://geonode:geonode@db:5432/test_geonode" \
+            GEODATABASE_URL="postgis://geonode_data:geonode_data@db:5432/test_geonode_data" \
+            python /usr/src/geonode/manage.py migrate --noinput' </dev/null
+
+      - name: Run importer_datapackage tests
+        run: |
+          DC="docker compose --env-file .env_test -f docker-compose-test.yaml"
+          # </dev/null keeps `docker compose exec -T` from swallowing this step's stdin.
+          $DC exec -T django bash -lc 'cd /usr/src/contrib_datapackage && ./runtest.sh' </dev/null
+
+      # always(): a failing suite is exactly when coverage is worth seeing, and
+      # this has to happen before the stack is torn down.
+      - name: Collect coverage
+        if: always()
+        run: |
+          DC="docker compose --env-file .env_test -f docker-compose-test.yaml"
+          $DC exec -T django bash -lc '
+            cd /usr/src/contrib_datapackage
+            [ -f .coverage ] || { echo "no coverage data produced"; exit 0; }
+            coverage report
+            coverage xml -o coverage.xml' </dev/null
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.xml
+          if-no-files-found: ignore
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker compose --env-file .env_test -f docker-compose-test.yaml logs --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose --env-file .env_test -f docker-compose-test.yaml down -v
