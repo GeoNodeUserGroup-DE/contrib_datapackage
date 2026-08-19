@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from geonode.storage.manager import StorageManager
 from geonode.base.populate_test_data import create_single_dataset
 from geonode.layers.models import Attribute
+from geonode.resource.enumerator import ExecutionRequestAction as exa
 
 from importer_datapackage.handlers.datapackage.handler import DataPackageFileHandler
 from importer_datapackage.handlers.datapackage.mapper import TabularDataHelper
@@ -72,19 +73,29 @@ class TestHandler(TestCase):
     def test_can_handle_datapackage(self):
         valid_dp = _absolute_path("data/datapackage.json")
         handler = DataPackageFileHandler()
-        
-        self.assertTrue(handler.can_handle({"json_file": valid_dp}))
-        
+
+        # can_handle() delegates to BaseVectorFileHandler.can_handle(), which
+        # rejects anything whose "action" is not one of its TASKS - so a payload
+        # without one can never be handled, whatever the file is.
+        self.assertTrue(handler.can_handle({"json_file": valid_dp, "action": exa.UPLOAD.value}))
+
+    def test_cannot_handle_datapackage_for_unsupported_action(self):
+        valid_dp = _absolute_path("data/datapackage.json")
+        handler = DataPackageFileHandler()
+
+        self.assertFalse(handler.can_handle({"json_file": valid_dp, "action": exa.HARVEST.value}))
+        self.assertFalse(handler.can_handle({"json_file": valid_dp}))
+
     def test_cannot_handle_non_datapackage(self):
         some_json = _absolute_path("data/geojson.json")
         handler = DataPackageFileHandler()
-        
-        self.assertFalse(handler.can_handle({"json_file": some_json}))
-        
+
+        self.assertFalse(handler.can_handle({"json_file": some_json, "action": exa.UPLOAD.value}))
+
     def test_cannot_handle_missing_json_file(self):
         handler = DataPackageFileHandler()
-        
-        self.assertFalse(handler.can_handle({"json_file": None}))
+
+        self.assertFalse(handler.can_handle({"json_file": None, "action": exa.UPLOAD.value}))
     
     def test_valid_package_returns_true(self):
         valid_dp = _absolute_path("data/datapackage.json")
