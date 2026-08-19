@@ -1,0 +1,91 @@
+services:
+
+  # Our custom django application. It includes GeoNode, the geonode-importer
+  # and this contrib app installed from the checkout under test.
+  django:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: django4datapackage
+    healthcheck:
+      test: "curl -m 10 --fail --silent --write-out 'HTTP CODE : %{http_code}\n' --output /dev/null http://django:8000/"
+      start_period: 60s
+      interval: 60s
+      timeout: 10s
+      retries: 2
+    environment:
+      - IS_CELERY=False
+    command: 'sleep infinity'
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env_test
+    volumes:
+      - statics:/mnt/volumes/statics
+      - geoserver-data-dir:/geoserver_data/data
+      - data:/data
+      - tmp:/tmp
+      - .:/usr/src/contrib_datapackage
+
+  # Geoserver backend
+  geoserver:
+    image: geonode/geoserver:2.24.3-latest
+    container_name: geoserver4datapackage
+    healthcheck:
+      test: "curl -m 10 --fail --silent --write-out 'HTTP CODE : %{http_code}\n' --output /dev/null http://geoserver:8080/geoserver/ows"
+      start_period: 60s
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    env_file:
+      - .env_test
+    volumes:
+      - statics:/mnt/volumes/statics
+      - geoserver-data-dir:/geoserver_data/data
+      - data:/data
+      - tmp:/tmp
+    restart: unless-stopped
+    depends_on:
+      data-dir-conf:
+        condition: service_healthy
+
+  data-dir-conf:
+    image: geonode/geoserver_data:2.24.3-latest
+    container_name: gsconf4datapackage
+    entrypoint: sleep infinity
+    volumes:
+      - geoserver-data-dir:/geoserver_data/data
+    restart: unless-stopped
+    healthcheck:
+      test: "ls -A '/geoserver_data/data' | wc -l"
+
+  # PostGIS database.
+  db:
+    # use geonode official postgis 15 image
+    image: geonode/postgis:15
+    command: postgres -c "max_connections=100"
+    container_name: db4datapackage
+    env_file:
+      - .env_test
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - dbbackups:/pg_backups
+    restart: unless-stopped
+    healthcheck:
+      test: "pg_isready -d postgres -U postgres"
+
+
+volumes:
+  statics:
+    name: datapackage-statics
+  geoserver-data-dir:
+    name: datapackage-gsdatadir
+  dbdata:
+    name: datapackage-dbdata
+  dbbackups:
+    name: datapackage-dbbackups
+  data:
+    name: datapackage-data
+  tmp:
+    name: datapackage-tmp

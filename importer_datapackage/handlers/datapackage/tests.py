@@ -14,6 +14,8 @@ import xml.etree.cElementTree as ET
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from geonode.storage.manager import StorageManager
+from geonode.base.populate_test_data import create_single_dataset
+from geonode.layers.models import Attribute
 
 from importer_datapackage.handlers.datapackage.handler import DataPackageFileHandler
 from importer_datapackage.handlers.datapackage.mapper import TabularDataHelper
@@ -285,3 +287,89 @@ class TestDataPackageEndToEndNullHandling(TestCase):
 
             self.assertGreater(null_count, 0, "expected at least one NULL BD_bulk row (missingValues)")
             self.assertGreater(set_count, 0, "expected at least one populated BD_bulk row")
+
+
+class TestAttributeTableFallback(TestCase):
+    """
+    Regression coverage for the intermittently missing attribute table after a
+    datapackage upload (zalf-rdm/geonode#655, zalf-rdm/geonode#705).
+
+    GeoNode builds the attribute table from one WFS DescribeFeatureType call made
+    inside resource_manager.create(). A GeoServer error document is well-formed
+    XML returned with HTTP 200, so it parses into an empty attribute list without
+    raising, the WMS fallback never runs (and cannot work for our geometry-less
+    tables), and nothing retries - the upload then succeeds with no attributes at
+    all. A dataset with an empty attribute_set is exactly that state, so these
+    tests drive DataPackageFileHandler.ensure_attributes() against it.
+    """
+
+    databases = ("default", "datastore")
+
+    _DESCRIPTOR = {
+        "name": "synthetic",
+        "resources": [
+            {
+                "name": "synthetic_data",
+                "path": "data.csv",
+                "format": "csv",
+                "schema": {
+                    "fields": [
+                        {"name": "id", "type": "integer", "title": "Identifier"},
+                        {"name": "amount", "type": "number", "title": "Amount",
+                         "description": "how much of it"},
+                        {"name": "Label-Text", "type": "string"},
+                        {"name": "measured_on", "type": "date", "title": "Measured on"},
+                    ]
+                },
+            }
+        ],
+    }
+
+    _CSV = "id,amount,Label-Text,measured_on\n1,12,foo,2020-01-01\n"
+
+    def _attribute_map(self):
+        with TemporaryDirectory() as tmp_dir:
+            package = _write_package(tmp_dir, self._DESCRIPTOR, self._CSV)
+            mapper = TabularDataHelper(package, DataPackageFileHandler().fixup_name)
+            return mapper.parse_attribute_map("synthetic_data")
+
+    def test_attributes_are_built_from_datapackage_when_geoserver_returns_none(self):
+        dataset = create_single_dataset("no_attributes_from_geoserver")
+        self.assertFalse(dataset.attribute_set.exists())
+
+        DataPackageFileHandler().ensure_attributes(dataset, self._attribute_map())
+
+        attributes = list(dataset.attribute_set.all().order_by("display_order"))
+        # every declared field is present, in descriptor order, under the same
+        # laundered name ogr2ogr gives the PostGIS column
+        self.assertEqual(
+            ["id", "amount", "label_text", "measured_on"],
+            [a.attribute for a in attributes],
+        )
+
+        by_name = {a.attribute: a for a in attributes}
+        self.assertEqual("xsd:int", by_name["id"].attribute_type)
+        self.assertEqual("xsd:double", by_name["amount"].attribute_type)
+        self.assertEqual("xsd:string", by_name["label_text"].attribute_type)
+        self.assertEqual("xsd:date", by_name["measured_on"].attribute_type)
+
+        # and they are actually rendered: the UI lists attribute_set.visible()
+        self.assertTrue(all(a.visible for a in attributes))
+
+        # titles/descriptions from the descriptor come along
+        self.assertEqual("Amount", by_name["amount"].attribute_label)
+        self.assertEqual("how much of it", by_name["amount"].description)
+        # no title declared -> fall back to the raw field name
+        self.assertEqual("Label-Text", by_name["label_text"].attribute_label)
+
+    def test_attributes_delivered_by_geoserver_are_left_alone(self):
+        dataset = create_single_dataset("attributes_from_geoserver")
+        Attribute.objects.create(
+            dataset=dataset, attribute="amount", attribute_type="xsd:double"
+        )
+
+        DataPackageFileHandler().ensure_attributes(dataset, self._attribute_map())
+
+        # GeoServer answered, so it stays the source of truth - we must not
+        # duplicate its attributes nor invent the ones it deliberately omitted
+        self.assertEqual(["amount"], [a.attribute for a in dataset.attribute_set.all()])
